@@ -5,9 +5,20 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { auth, trustedOrigins } from "./auth.js";
+import { articlesRouter } from "./routes/articles.js";
+import { feedsRouter } from "./routes/feeds.js";
+import { imagesRouter } from "./routes/images.js";
+import { tagsRouter } from "./routes/tags.js";
 
 const app = new Hono();
 
+// The signed image proxy is meant to be embedded cross-origin (the web
+// app's <img> tags) — the HMAC signature is what authorizes each request,
+// so it's safe to relax CORP here specifically. Registered before the
+// blanket "*" secureHeaders() below so it's the outer layer for this exact
+// path and its header value is the one that survives (secureHeaders sets
+// headers on the way back out, so the outermost matching middleware wins).
+app.use("/img", secureHeaders({ crossOriginResourcePolicy: "cross-origin" }));
 app.use("*", secureHeaders());
 app.use(
   "/auth/*",
@@ -28,6 +39,16 @@ app.use(
     maxAge: 600,
   }),
 );
+const jsonApiCors = cors({
+  origin: trustedOrigins,
+  allowHeaders: ["Content-Type"],
+  allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  maxAge: 600,
+  credentials: true,
+});
+app.use("/feeds/*", jsonApiCors);
+app.use("/tags/*", jsonApiCors);
+app.use("/articles/*", jsonApiCors);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -53,6 +74,11 @@ app.post("/auth/sign-up/email", async (c) => {
 });
 
 app.on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
+
+app.route("/feeds", feedsRouter);
+app.route("/tags", tagsRouter);
+app.route("/articles", articlesRouter);
+app.route("/img", imagesRouter);
 
 const port = Number(process.env.API_PORT ?? 3001);
 

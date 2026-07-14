@@ -1,3 +1,8 @@
-// Feed discovery + article extraction (SourceAdapter interface, RSS/Atom/HN/readability
-// adapters, sanitizer). Implemented in Phase 2.
-export {};
+export * from "./net/ssrf.js";
+export * from "./net/safe-fetch.js";
+export * from "./discover.js";
+export * from "./extract-article.js";
+export * from "./sanitize.js";
+export * from "./image-proxy.js";
+export * from "./adapters/index.js";
+export * from "./ingest.js";

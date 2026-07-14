@@ -8,10 +8,12 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed-user.ts",
+    "seed:feeds": "tsx src/scripts/seed-feeds.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@distill/db": "workspace:*",
+    "@distill/extract": "workspace:*",
     "@distill/shared": "workspace:*",
     "@hono/node-server": "^1.19.6",
     "better-auth": "^1.6.23",

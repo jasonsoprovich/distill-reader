@@ -8,6 +8,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Exposed so host-run tooling (pnpm db:migrate, pnpm dev) can reach it
+      # per the README's local-dev flow; containers on the compose network
+      # still address it as `postgres:5432` regardless of this mapping.
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -103,6 +108,10 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL}
     restart: unless-stopped
+    environment:
+      # Also needed at container start (not just build time): nginx's
+      # envsubst-on-templates entrypoint renders it into the CSP header.
+      VITE_API_URL: ${VITE_API_URL}
     ports:
       - "${WEB_PORT}:8080"
     depends_on:

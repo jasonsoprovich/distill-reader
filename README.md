@@ -36,7 +36,7 @@ docker compose up --build
 
 ## Status
 
-Phase 0 (scaffold) in progress — see `docs/PLAN.md` §13 for the phased build order.
+Phase 2 (feeds & ingestion) complete — see `docs/PLAN.md` §13 for the phased build order.
 
 ## Scale-up security checklist
 
