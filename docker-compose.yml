@@ -24,6 +24,25 @@ services:
       postgres:
         condition: service_healthy
 
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "apps/api/dist/scripts/seed-user.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      WEB_ORIGIN: ${WEB_ORIGIN}
+      INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD}
+      INITIAL_USER_NAME: ${INITIAL_USER_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   api:
     build:
       context: .
@@ -35,6 +54,7 @@ services:
       API_PORT: ${API_PORT}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      WEB_ORIGIN: ${WEB_ORIGIN}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -46,6 +66,8 @@ services:
       postgres:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:$$API_PORT/health || exit 1"]
@@ -78,6 +100,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
     restart: unless-stopped
     ports:
       - "${WEB_PORT}:8080"

@@ -1,8 +1,25 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { queryClient } from "./lib/query-client";
+import Login from "./routes/Login";
+import ProtectedLayout from "./routes/ProtectedLayout";
+import Reader from "./routes/Reader";
+import Setup from "./routes/Setup";
+
 function App() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-neutral-900">
-      <p className="text-sm text-neutral-500">Distill — scaffold running.</p>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/setup" element={<Setup />} />
+          <Route path="/login" element={<Login />} />
+          <Route element={<ProtectedLayout />}>
+            <Route path="/" element={<Reader />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 
