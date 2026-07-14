@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      API_PORT: ${API_PORT}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+      LOG_LEVEL: ${LOG_LEVEL}
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    volumes:
+      - audio_storage:${AUDIO_STORAGE_PATH}:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$$API_PORT/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      PIPER_BASE_URL: ${PIPER_BASE_URL}
+      LOG_LEVEL: ${LOG_LEVEL}
+    volumes:
+      - audio_storage:${AUDIO_STORAGE_PATH}:rw
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT}:8080"
+    depends_on:
+      - api
+
+  # Optional local providers. Enable with: docker compose --profile ollama up
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+
+  # Enable with: docker compose --profile piper up
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    profiles: ["piper"]
+    restart: unless-stopped
+    volumes:
+      - piper_data:/data
+
+volumes:
+  postgres_data:
+  audio_storage:
+  ollama_data:
+  piper_data:
