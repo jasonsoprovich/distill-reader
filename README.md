@@ -36,7 +36,7 @@ docker compose up --build
 
 ## Status
 
-Phase 6 (RSVP speed-reader) complete — see `docs/PLAN.md` §13 for the phased build order.
+Phase 7 (Text-to-Speech) complete — see `docs/PLAN.md` §13 for the phased build order. Highlight-follow (karaoke sync) is deferred per §14's own lean; basic playback, caching, and resume are done.
 
 ## Scale-up security checklist
 
