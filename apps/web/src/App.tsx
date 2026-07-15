@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "./components/ui/toaster";
 import { queryClient } from "./lib/query-client";
 import Login from "./routes/Login";
 import ProtectedLayout from "./routes/ProtectedLayout";
@@ -19,6 +20,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      <Toaster />
     </QueryClientProvider>
   );
 }

@@ -1,6 +1,7 @@
 import type {
   ArticleDetailDTO,
   ArticlesPage,
+  ArticleView,
   CreateFeedInput,
   DiscoveredFeed,
   FeedDTO,
@@ -34,7 +35,13 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export interface ListArticlesParams {
   feedId?: string;
   tagId?: string;
+  view?: ArticleView;
   cursor?: string;
+}
+
+export interface ReadAllParams {
+  feedId?: string;
+  tagId?: string;
 }
 
 export const api = {
@@ -54,9 +61,27 @@ export const api = {
     const search = new URLSearchParams();
     if (params.feedId) search.set("feedId", params.feedId);
     if (params.tagId) search.set("tagId", params.tagId);
+    if (params.view) search.set("view", params.view);
     if (params.cursor) search.set("cursor", params.cursor);
     const qs = search.toString();
     return apiFetch<ArticlesPage>(`/articles${qs ? `?${qs}` : ""}`);
   },
   getArticle: (id: string) => apiFetch<ArticleDetailDTO>(`/articles/${id}`),
+  markRead: (id: string, read: boolean) =>
+    apiFetch<{ readAt: string | null }>(`/articles/${id}/read`, {
+      method: "POST",
+      body: JSON.stringify({ read }),
+    }),
+  starArticle: (id: string, starred: boolean) =>
+    apiFetch<{ starred: boolean }>(`/articles/${id}/star`, {
+      method: "POST",
+      body: JSON.stringify({ starred }),
+    }),
+  clearArticle: (id: string, cleared: boolean) =>
+    apiFetch<{ clearedAt: string | null }>(`/articles/${id}/clear`, {
+      method: "POST",
+      body: JSON.stringify({ cleared }),
+    }),
+  readAllArticles: (params: ReadAllParams) =>
+    apiFetch<{ updated: number }>("/articles/read-all", { method: "POST", body: JSON.stringify(params) }),
 };

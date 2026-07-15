@@ -1,11 +1,20 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateFeedInput } from "@distill/shared";
-import { api } from "./api";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
+import type { ArticleDetailDTO, ArticleListItemDTO, ArticlesPage, ArticleView, CreateFeedInput } from "@distill/shared";
+import { api, type ReadAllParams } from "./api";
+import { toast } from "./toast";
 
 export const feedsQueryKey = ["feeds"] as const;
 export const tagsQueryKey = ["tags"] as const;
-export const articlesQueryKey = (feedId?: string, tagId?: string) =>
-  ["articles", { feedId, tagId }] as const;
+export const articlesQueryKey = (feedId?: string, tagId?: string, view?: ArticleView) =>
+  ["articles", { feedId, tagId, view }] as const;
 export const articleQueryKey = (id: string) => ["article", id] as const;
 
 export function useFeeds() {
@@ -55,10 +64,10 @@ export function useCreateTag() {
   });
 }
 
-export function useArticles(feedId?: string, tagId?: string) {
+export function useArticles(feedId?: string, tagId?: string, view?: ArticleView) {
   return useInfiniteQuery({
-    queryKey: articlesQueryKey(feedId, tagId),
-    queryFn: ({ pageParam }) => api.listArticles({ feedId, tagId, cursor: pageParam }),
+    queryKey: articlesQueryKey(feedId, tagId, view),
+    queryFn: ({ pageParam }) => api.listArticles({ feedId, tagId, view, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
@@ -69,5 +78,124 @@ export function useArticle(id: string | null) {
     queryKey: articleQueryKey(id ?? "none"),
     queryFn: () => api.getArticle(id as string),
     enabled: Boolean(id),
+  });
+}
+
+// --- Read / star / clear -----------------------------------------------
+//
+// All three mutate a single article's state. They apply the change to
+// every cached article list (across feed/tag/view combinations) and the
+// article detail cache immediately for a responsive feel, roll back to
+// the pre-mutation snapshot on failure (with a toast), then invalidate on
+// settle so server-side view membership (e.g. an article leaving the
+// Unread list) reconciles for real.
+
+type ArticlePatch = Partial<Pick<ArticleListItemDTO, "readAt" | "starred" | "clearedAt">>;
+
+interface ArticleMutationContext {
+  previousLists: [QueryKey, InfiniteData<ArticlesPage> | undefined][];
+  previousDetail: ArticleDetailDTO | undefined;
+}
+
+function applyArticlePatch(queryClient: QueryClient, id: string, patch: ArticlePatch) {
+  queryClient.setQueriesData<InfiniteData<ArticlesPage>>({ queryKey: ["articles"] }, (data) => {
+    if (!data) return data;
+    return {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...page,
+        items: page.items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      })),
+    };
+  });
+  queryClient.setQueryData<ArticleDetailDTO>(articleQueryKey(id), (data) =>
+    data ? { ...data, ...patch } : data,
+  );
+}
+
+async function beginOptimisticPatch(
+  queryClient: QueryClient,
+  id: string,
+  patch: ArticlePatch,
+): Promise<ArticleMutationContext> {
+  await queryClient.cancelQueries({ queryKey: ["articles"] });
+  await queryClient.cancelQueries({ queryKey: articleQueryKey(id) });
+
+  const previousLists = queryClient.getQueriesData<InfiniteData<ArticlesPage>>({ queryKey: ["articles"] });
+  const previousDetail = queryClient.getQueryData<ArticleDetailDTO>(articleQueryKey(id));
+
+  applyArticlePatch(queryClient, id, patch);
+
+  return { previousLists, previousDetail };
+}
+
+function rollbackOptimisticPatch(
+  queryClient: QueryClient,
+  id: string,
+  context: ArticleMutationContext | undefined,
+) {
+  if (!context) return;
+  for (const [key, data] of context.previousLists) {
+    queryClient.setQueryData(key, data);
+  }
+  queryClient.setQueryData(articleQueryKey(id), context.previousDetail);
+}
+
+function settleArticleMutation(queryClient: QueryClient, id: string) {
+  queryClient.invalidateQueries({ queryKey: ["articles"] });
+  queryClient.invalidateQueries({ queryKey: articleQueryKey(id) });
+  queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+}
+
+export function useMarkRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, read }: { id: string; read: boolean }) => api.markRead(id, read),
+    onMutate: ({ id, read }) =>
+      beginOptimisticPatch(queryClient, id, { readAt: read ? new Date().toISOString() : null }),
+    onError: (_err, { id }, context) => {
+      rollbackOptimisticPatch(queryClient, id, context);
+      toast("Couldn't update read status — try again.", "error");
+    },
+    onSettled: (_data, _err, { id }) => settleArticleMutation(queryClient, id),
+  });
+}
+
+export function useStarArticle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, starred }: { id: string; starred: boolean }) => api.starArticle(id, starred),
+    onMutate: ({ id, starred }) => beginOptimisticPatch(queryClient, id, { starred }),
+    onError: (_err, { id }, context) => {
+      rollbackOptimisticPatch(queryClient, id, context);
+      toast("Couldn't update star — try again.", "error");
+    },
+    onSettled: (_data, _err, { id }) => settleArticleMutation(queryClient, id),
+  });
+}
+
+export function useClearArticle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, cleared }: { id: string; cleared: boolean }) => api.clearArticle(id, cleared),
+    onMutate: ({ id, cleared }) =>
+      beginOptimisticPatch(queryClient, id, { clearedAt: cleared ? new Date().toISOString() : null }),
+    onError: (_err, { id }, context) => {
+      rollbackOptimisticPatch(queryClient, id, context);
+      toast("Couldn't update article — try again.", "error");
+    },
+    onSettled: (_data, _err, { id }) => settleArticleMutation(queryClient, id),
+  });
+}
+
+export function useReadAll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: ReadAllParams) => api.readAllArticles(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+    },
+    onError: () => toast("Couldn't mark all as read — try again.", "error"),
   });
 }
