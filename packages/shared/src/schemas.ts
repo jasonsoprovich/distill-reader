@@ -37,10 +37,29 @@ export type CreateTagInput = z.infer<typeof createTagSchema>;
 export const patchTagSchema = createTagSchema.partial();
 export type PatchTagInput = z.infer<typeof patchTagSchema>;
 
+export const ARTICLE_VIEWS = ["unread", "starred", "cleared"] as const;
+export type ArticleView = (typeof ARTICLE_VIEWS)[number];
+
 export const listArticlesQuerySchema = z.object({
   feedId: z.uuid().optional(),
   tagId: z.uuid().optional(),
+  view: z.enum(ARTICLE_VIEWS).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
 export type ListArticlesQuery = z.infer<typeof listArticlesQuerySchema>;
+
+export const markReadSchema = z.object({ read: z.boolean() });
+export type MarkReadInput = z.infer<typeof markReadSchema>;
+
+export const starArticleSchema = z.object({ starred: z.boolean() });
+export type StarArticleInput = z.infer<typeof starArticleSchema>;
+
+export const clearArticleSchema = z.object({ cleared: z.boolean() });
+export type ClearArticleInput = z.infer<typeof clearArticleSchema>;
+
+export const readAllSchema = z.object({
+  feedId: z.uuid().optional(),
+  tagId: z.uuid().optional(),
+});
+export type ReadAllInput = z.infer<typeof readAllSchema>;

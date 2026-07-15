@@ -28,14 +28,14 @@ async function tagsByFeedId(userId: string): Promise<Map<string, TagDTO[]>> {
 
 // An article counts as unread until it has an article_state row with
 // read_at set — no row at all (the default for every newly ingested
-// article) counts as unread too. Read/clear actions themselves land in
-// Phase 3; this just needs to reflect that default correctly.
+// article) counts as unread too. Cleared articles ("not interested") are
+// excluded so they don't inflate the badge after being dismissed.
 async function unreadCountsByFeedId(userId: string): Promise<Map<string, number>> {
   const rows = await db
     .select({ feedId: article.feedId, count: sql<number>`count(*)::int` })
     .from(article)
     .leftJoin(articleState, and(eq(articleState.articleId, article.id), eq(articleState.userId, userId)))
-    .where(and(eq(article.userId, userId), isNull(articleState.readAt)))
+    .where(and(eq(article.userId, userId), isNull(articleState.readAt), isNull(articleState.clearedAt)))
     .groupBy(article.feedId);
 
   return new Map(rows.map((r) => [r.feedId, r.count]));

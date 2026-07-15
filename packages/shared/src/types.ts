@@ -72,6 +72,9 @@ export interface ArticleListItemDTO {
   leadImageUrl: string | null;
   wordCount: number;
   extractionStatus: ExtractionStatus;
+  readAt: string | null;
+  starred: boolean;
+  clearedAt: string | null;
 }
 
 export interface ArticleDetailDTO extends ArticleListItemDTO {
