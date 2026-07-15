@@ -1,6 +1,7 @@
-import { useEffect } from "react";
-import { CheckIcon, SparklesIcon, StarIcon, XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckIcon, SparklesIcon, StarIcon, XIcon, ZapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RsvpReader from "@/components/RsvpReader";
 import { useArticle, useClearArticle, useMarkRead, useRequestSummary, useStarArticle, useSummary } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +51,7 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
   const markRead = useMarkRead();
   const starArticle = useStarArticle();
   const clearArticle = useClearArticle();
+  const [isRsvpOpen, setIsRsvpOpen] = useState(false);
 
   useEffect(() => {
     if (!article || article.readAt) return;
@@ -87,6 +89,15 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-semibold text-neutral-900">{article.title}</h1>
           <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Speed-read"
+              onClick={() => setIsRsvpOpen(true)}
+            >
+              <ZapIcon className="size-4 text-neutral-400" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -162,6 +173,8 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
           dangerouslySetInnerHTML={{ __html: article.contentHtml }}
         />
       </article>
+
+      {isRsvpOpen && <RsvpReader text={article.contentText} onExit={() => setIsRsvpOpen(false)} />}
     </main>
   );
 }
