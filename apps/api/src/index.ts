@@ -11,6 +11,7 @@ import { feedsRouter } from "./routes/feeds.js";
 import { imagesRouter } from "./routes/images.js";
 import { settingsRouter } from "./routes/settings.js";
 import { tagsRouter } from "./routes/tags.js";
+import { ttsRouter } from "./routes/tts.js";
 
 const app = new Hono();
 
@@ -43,8 +44,12 @@ app.use(
 );
 const jsonApiCors = cors({
   origin: trustedOrigins,
-  allowHeaders: ["Content-Type"],
+  // Range is required for cross-origin <audio> scrubbing on /tts/audio/:id
+  // (GET /tts/*) — the browser's own Range header on seek isn't
+  // CORS-safelisted, so it needs an explicit allow or the preflight fails.
+  allowHeaders: ["Content-Type", "Range"],
   allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  exposeHeaders: ["Content-Range", "Accept-Ranges", "Content-Length"],
   maxAge: 600,
   credentials: true,
 });
@@ -53,6 +58,7 @@ app.use("/tags/*", jsonApiCors);
 app.use("/articles/*", jsonApiCors);
 app.use("/credentials/*", jsonApiCors);
 app.use("/settings/*", jsonApiCors);
+app.use("/tts/*", jsonApiCors);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -85,6 +91,7 @@ app.route("/articles", articlesRouter);
 app.route("/img", imagesRouter);
 app.route("/credentials", credentialsRouter);
 app.route("/settings", settingsRouter);
+app.route("/tts", ttsRouter);
 
 const port = Number(process.env.API_PORT ?? 3001);
 

@@ -1,15 +1,38 @@
+import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { article, articleState, auditLog, db, feed, feedTag, summary, userSettings } from "@distill/db";
-import { generateSummary, resolveModel, SUMMARY_PROMPT_VERSION, SummaryProviderError } from "@distill/providers";
+import { article, articleState, auditLog, db, feed, feedTag, summary, ttsAudio, userSettings } from "@distill/db";
+import {
+  generateSummary,
+  generateTts,
+  resolveModel,
+  resolveTtsVoice,
+  SUMMARY_PROMPT_VERSION,
+  SummaryProviderError,
+  TTS_FORMATS,
+  TTS_SETTINGS_VERSION,
+  TtsProviderError,
+} from "@distill/providers";
 import {
   clearArticleSchema,
   listArticlesQuerySchema,
   markReadSchema,
   readAllSchema,
   requestSummarySchema,
+  requestTtsSchema,
   starArticleSchema,
+  updatePlaybackPositionSchema,
 } from "@distill/shared";
-import type { ArticleDetailDTO, ArticleListItemDTO, ArticlesPage, SummaryDTO, SummaryProviderKind } from "@distill/shared";
+import type {
+  ArticleDetailDTO,
+  ArticleListItemDTO,
+  ArticlesPage,
+  SummaryDTO,
+  SummaryProviderKind,
+  TtsAudioDTO,
+  TtsProviderKind,
+} from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 
@@ -51,7 +74,12 @@ function articleStateJoin(userId: string) {
 async function upsertArticleState(
   userId: string,
   articleId: string,
-  patch: Partial<{ readAt: Date | null; starred: boolean; clearedAt: Date | null }>,
+  patch: Partial<{
+    readAt: Date | null;
+    starred: boolean;
+    clearedAt: Date | null;
+    lastPlaybackPositionSeconds: string | null;
+  }>,
 ) {
   const [owned] = await db
     .select({ id: article.id })
@@ -242,6 +270,7 @@ articlesRouter.get("/:id", async (c) => {
       readAt: articleState.readAt,
       starred: articleState.starred,
       clearedAt: articleState.clearedAt,
+      lastPlaybackPositionSeconds: articleState.lastPlaybackPositionSeconds,
     })
     .from(article)
     .innerJoin(feed, eq(article.feedId, feed.id))
@@ -256,8 +285,28 @@ articlesRouter.get("/:id", async (c) => {
     readAt: row.readAt ? row.readAt.toISOString() : null,
     starred: row.starred ?? false,
     clearedAt: row.clearedAt ? row.clearedAt.toISOString() : null,
+    playbackPositionSeconds:
+      row.lastPlaybackPositionSeconds != null ? Number(row.lastPlaybackPositionSeconds) : null,
   };
   return c.json(dto);
+});
+
+// Resume position for the TTS audio player (PLAN §7.3); stored per-user on
+// article_state like read/star/clear, not tied to a specific tts_audio row
+// (voice/provider can change between listens without losing the position).
+articlesRouter.post("/:id/playback-position", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = updatePlaybackPositionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+
+  const row = await upsertArticleState(userId, id, {
+    lastPlaybackPositionSeconds: String(body.data.positionSeconds),
+  });
+  if (!row) return c.json({ message: "Not found" }, 404);
+  return c.json({
+    positionSeconds: row.lastPlaybackPositionSeconds != null ? Number(row.lastPlaybackPositionSeconds) : null,
+  });
 });
 
 function toSummaryDTO(row: typeof summary.$inferSelect): SummaryDTO {
@@ -279,7 +328,9 @@ function statusForSummaryError(code: SummaryProviderError["code"]): 401 | 429 | 
   }
 }
 
-async function ownedArticleForSummary(userId: string, id: string) {
+// Shared by both the summary and TTS routes below — both need only the
+// article's title/text and an ownership check.
+async function ownedArticleWithText(userId: string, id: string) {
   const [row] = await db
     .select({ id: article.id, title: article.title, contentText: article.contentText })
     .from(article)
@@ -307,7 +358,7 @@ articlesRouter.get("/:id/summary", async (c) => {
   const query = requestSummarySchema.safeParse(c.req.query());
   if (!query.success) return c.json({ message: "Invalid query", issues: query.error.issues }, 400);
 
-  const owned = await ownedArticleForSummary(userId, id);
+  const owned = await ownedArticleWithText(userId, id);
   if (!owned) return c.json({ message: "Not found" }, 404);
 
   const conditions = [
@@ -333,7 +384,7 @@ articlesRouter.post("/:id/summary", async (c) => {
   const body = requestSummarySchema.safeParse(await c.req.json().catch(() => ({})));
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
 
-  const owned = await ownedArticleForSummary(userId, id);
+  const owned = await ownedArticleWithText(userId, id);
   if (!owned) return c.json({ message: "Not found" }, 404);
 
   let provider: SummaryProviderKind | undefined = body.data.provider;
@@ -407,6 +458,167 @@ articlesRouter.post("/:id/summary", async (c) => {
     await logSummaryError(userId, id, provider, err);
     const status = err instanceof SummaryProviderError ? statusForSummaryError(err.code) : 502;
     const message = err instanceof Error ? err.message : "Failed to generate summary";
+    return c.json({ message }, status);
+  }
+});
+
+function audioStoragePath(): string {
+  return process.env.AUDIO_STORAGE_PATH ?? "/data/audio";
+}
+
+// Absolute URL (same convention as the signed image proxy in
+// packages/extract/src/image-proxy.ts): the player's <audio src> points
+// straight at the API's own public origin, not a relative path the SPA
+// would need to prefix itself.
+function ttsAudioUrl(id: string): string {
+  const apiOrigin = (process.env.BETTER_AUTH_URL ?? "").replace(/\/$/, "");
+  return `${apiOrigin}/tts/audio/${id}`;
+}
+
+function toTtsAudioDTO(row: typeof ttsAudio.$inferSelect): TtsAudioDTO {
+  return {
+    provider: row.provider,
+    voice: row.voice,
+    format: row.format,
+    durationSeconds: row.durationSeconds != null ? Number(row.durationSeconds) : null,
+    charCount: row.charCount,
+    timings: row.timings as TtsAudioDTO["timings"],
+    createdAt: row.createdAt.toISOString(),
+    url: ttsAudioUrl(row.id),
+  };
+}
+
+// Maps a provider failure to a client-actionable status — never a bare 500
+// (same anti-silent-failure rule as summaries, PLAN §7.2).
+function statusForTtsError(code: TtsProviderError["code"]): 401 | 429 | 502 | 504 {
+  switch (code) {
+    case "auth":
+      return 401;
+    case "rate_limit":
+      return 429;
+    case "timeout":
+      return 504;
+    default:
+      return 502;
+  }
+}
+
+async function logTtsError(userId: string, articleId: string, provider: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  const code = err instanceof TtsProviderError ? err.code : "unknown";
+  await db.insert(auditLog).values({
+    userId,
+    action: "tts_error",
+    targetType: "article",
+    targetId: articleId,
+    metadata: { provider, code, message },
+  });
+}
+
+function ttsCacheConditions(id: string, userId: string, provider: TtsProviderKind, voice: string, format: string) {
+  return and(
+    eq(ttsAudio.articleId, id),
+    eq(ttsAudio.userId, userId),
+    eq(ttsAudio.provider, provider),
+    eq(ttsAudio.voice, voice),
+    eq(ttsAudio.format, format),
+    eq(ttsAudio.settingsVersion, TTS_SETTINGS_VERSION),
+  );
+}
+
+// Cached only — mirrors GET /:id/summary; never triggers generation, so
+// it's safe to call on every article view without incurring provider cost.
+articlesRouter.get("/:id/tts", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const query = requestTtsSchema.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "Invalid query", issues: query.error.issues }, 400);
+
+  const owned = await ownedArticleWithText(userId, id);
+  if (!owned) return c.json({ message: "Not found" }, 404);
+
+  const conditions = [
+    eq(ttsAudio.articleId, id),
+    eq(ttsAudio.userId, userId),
+    eq(ttsAudio.settingsVersion, TTS_SETTINGS_VERSION),
+  ];
+  if (query.data.provider) conditions.push(eq(ttsAudio.provider, query.data.provider));
+  if (query.data.voice) conditions.push(eq(ttsAudio.voice, query.data.voice));
+
+  const [row] = await db.select().from(ttsAudio).where(and(...conditions)).orderBy(desc(ttsAudio.createdAt)).limit(1);
+  if (!row) return c.json({ message: "No cached audio" }, 404);
+  return c.json(toTtsAudioDTO(row));
+});
+
+// On-demand: cache hit returns immediately; a miss synthesizes
+// synchronously under generateTts()'s own bounded per-chunk timeouts
+// (mirrors POST /:id/summary — no job-queue infrastructure exists
+// elsewhere in this codebase) and writes the resulting file to
+// AUDIO_STORAGE_PATH before returning.
+articlesRouter.post("/:id/tts", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = requestTtsSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+
+  const owned = await ownedArticleWithText(userId, id);
+  if (!owned) return c.json({ message: "Not found" }, 404);
+
+  let provider: TtsProviderKind | undefined = body.data.provider;
+  if (!provider) {
+    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+    provider = settings?.defaultTtsProvider ?? undefined;
+  }
+  if (!provider) {
+    return c.json({ message: "No provider specified and no default TTS provider configured" }, 422);
+  }
+
+  const voice = resolveTtsVoice(provider, body.data.voice);
+  const format = TTS_FORMATS[provider];
+
+  const [cached] = await db.select().from(ttsAudio).where(ttsCacheConditions(id, userId, provider, voice, format));
+  if (cached) return c.json(toTtsAudioDTO(cached));
+
+  try {
+    const result = await generateTts({ db, userId, provider, voice, articleText: owned.contentText });
+
+    // Hashed rather than built from the raw voice string, which may contain
+    // characters unsafe in a filename (and is otherwise untrusted input).
+    const storageKey = `${createHash("sha256")
+      .update(`${id}:${userId}:${result.provider}:${result.voice}:${result.format}:${result.settingsVersion}`)
+      .digest("hex")}.${result.format}`;
+    await mkdir(audioStoragePath(), { recursive: true });
+    await writeFile(path.join(audioStoragePath(), storageKey), result.audio);
+
+    let [row] = await db
+      .insert(ttsAudio)
+      .values({
+        articleId: id,
+        userId,
+        provider: result.provider,
+        voice: result.voice,
+        format: result.format,
+        storageKey,
+        durationSeconds: result.durationSeconds != null ? String(result.durationSeconds) : null,
+        charCount: result.charCount,
+        timings: result.timings,
+        settingsVersion: result.settingsVersion,
+      })
+      .onConflictDoNothing({
+        target: [ttsAudio.articleId, ttsAudio.userId, ttsAudio.provider, ttsAudio.voice, ttsAudio.format, ttsAudio.settingsVersion],
+      })
+      .returning();
+
+    // A concurrent request may have won the race and inserted first —
+    // onConflictDoNothing then returns nothing, so fetch what's there.
+    if (!row) {
+      [row] = await db.select().from(ttsAudio).where(ttsCacheConditions(id, userId, provider, voice, format));
+    }
+    return c.json(toTtsAudioDTO(row));
+  } catch (err) {
+    await logTtsError(userId, id, provider, err);
+    const status = err instanceof TtsProviderError ? statusForTtsError(err.code) : 502;
+    const message = err instanceof Error ? err.message : "Failed to generate audio";
     return c.json({ message }, status);
   }
 });

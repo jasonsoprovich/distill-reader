@@ -9,6 +9,14 @@ export const DEFAULT_TTS_VOICES: Record<TtsProviderKind, string> = {
   piper: "en_US-lessac-medium",
 };
 
+// Each provider always synthesizes to one fixed format (mp3 for ElevenLabs,
+// wav for Piper) — this lets a caller compute the cache key before calling
+// generateTts().
+export const TTS_FORMATS: Record<TtsProviderKind, string> = {
+  elevenlabs: "mp3",
+  piper: "wav",
+};
+
 // Bounds each provider HTTP call. Synthesis is slower than a summary
 // completion, so this is longer than SUMMARY_REQUEST_TIMEOUT_MS.
 export const TTS_REQUEST_TIMEOUT_MS = 60_000;
