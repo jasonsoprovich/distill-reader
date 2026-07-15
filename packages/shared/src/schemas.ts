@@ -93,12 +93,22 @@ export const rsvpPrefsSchema = z.object({
 });
 export type RsvpPrefsInput = z.infer<typeof rsvpPrefsSchema>;
 
+// PLAN §7.3 — persisted as a merge-patch into user_settings.tts_prefs
+// (jsonb), mirroring rsvpPrefsSchema's all-optional shape.
+export const ttsPrefsSchema = z.object({
+  provider: z.enum(TTS_PROVIDERS).optional(),
+  voice: z.string().min(1).max(200).optional(),
+  speed: z.number().min(0.5).max(2).optional(),
+  highlightFollowEnabled: z.boolean().optional(),
+});
+export type TtsPrefsInput = z.infer<typeof ttsPrefsSchema>;
+
 export const patchSettingsSchema = z.object({
   defaultRetentionReadDays: z.number().int().positive().optional(),
   defaultRetentionUnreadDays: z.number().int().positive().optional(),
   readerTheme: z.record(z.string(), z.unknown()).optional(),
   rsvpPrefs: rsvpPrefsSchema.optional(),
-  ttsPrefs: z.record(z.string(), z.unknown()).optional(),
+  ttsPrefs: ttsPrefsSchema.optional(),
   defaultSummaryProvider: z.enum(SUMMARY_PROVIDERS).nullable().optional(),
   defaultTtsProvider: z.enum(TTS_PROVIDERS).nullable().optional(),
 });
@@ -109,3 +119,14 @@ export const requestSummarySchema = z.object({
   model: z.string().min(1).max(200).optional(),
 });
 export type RequestSummaryInput = z.infer<typeof requestSummarySchema>;
+
+export const requestTtsSchema = z.object({
+  provider: z.enum(TTS_PROVIDERS).optional(),
+  voice: z.string().min(1).max(200).optional(),
+});
+export type RequestTtsInput = z.infer<typeof requestTtsSchema>;
+
+export const updatePlaybackPositionSchema = z.object({
+  positionSeconds: z.number().min(0),
+});
+export type UpdatePlaybackPositionInput = z.infer<typeof updatePlaybackPositionSchema>;

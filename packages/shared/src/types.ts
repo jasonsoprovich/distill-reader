@@ -95,9 +95,11 @@ export interface ArticleDetailDTO extends ArticleListItemDTO {
   url: string;
   contentHtml: string;
   // Plain text, used by client-only modules driven off the normalized body
-  // (RSVP speed-reader today; TTS synthesis later) rather than the HTML.
+  // (RSVP speed-reader, TTS synthesis) rather than the HTML.
   contentText: string;
   discussionUrl: string | null;
+  // TTS audio player resume position (PLAN §7.3); null until playback starts.
+  playbackPositionSeconds: number | null;
 }
 
 export interface ArticlesPage {
@@ -135,12 +137,48 @@ export interface RsvpPrefs {
   punctuationPauseEnabled?: boolean;
 }
 
+// PLAN §7.3 — persisted TTS audio-player preferences. All fields optional,
+// same "partial patch + empty-row default" shape as RsvpPrefs.
+export interface TtsPrefs {
+  provider?: TtsProviderKind;
+  voice?: string;
+  speed?: number;
+  highlightFollowEnabled?: boolean;
+}
+
 export interface SettingsDTO {
   defaultRetentionReadDays: number;
   defaultRetentionUnreadDays: number;
   readerTheme: Record<string, unknown>;
   rsvpPrefs: RsvpPrefs;
-  ttsPrefs: Record<string, unknown>;
+  ttsPrefs: TtsPrefs;
   defaultSummaryProvider: SummaryProviderKind | null;
   defaultTtsProvider: TtsProviderKind | null;
+}
+
+// Per-character alignment from providers that supply it (ElevenLabs); absent
+// for providers that don't (Piper) — the player falls back to plain playback
+// (PLAN §7.2/§7.3's "degrade gracefully" rule).
+export interface TtsTimings {
+  characters: string[];
+  characterStartTimesSeconds: number[];
+  characterEndTimesSeconds: number[];
+}
+
+export interface TtsAudioDTO {
+  provider: TtsProviderKind;
+  voice: string;
+  format: string;
+  durationSeconds: number | null;
+  charCount: number;
+  timings: TtsTimings | null;
+  createdAt: string;
+  // Same-origin, auth-scoped stream URL (GET /tts/audio/:id) — never a
+  // direct storage path (PLAN §10.6).
+  url: string;
+}
+
+export interface TtsVoiceDTO {
+  id: string;
+  name: string;
 }

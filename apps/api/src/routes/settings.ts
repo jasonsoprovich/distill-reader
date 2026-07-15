@@ -24,7 +24,7 @@ function toDTO(row: typeof userSettings.$inferSelect): SettingsDTO {
     defaultRetentionUnreadDays: row.defaultRetentionUnreadDays,
     readerTheme: row.readerTheme as Record<string, unknown>,
     rsvpPrefs: row.rsvpPrefs as SettingsDTO["rsvpPrefs"],
-    ttsPrefs: row.ttsPrefs as Record<string, unknown>,
+    ttsPrefs: row.ttsPrefs as SettingsDTO["ttsPrefs"],
     defaultSummaryProvider: row.defaultSummaryProvider,
     defaultTtsProvider: row.defaultTtsProvider,
   };
