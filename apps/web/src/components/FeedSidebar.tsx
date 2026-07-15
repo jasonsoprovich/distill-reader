@@ -2,16 +2,32 @@ import { RefreshCwIcon } from "lucide-react";
 import AddFeedDialog from "@/components/AddFeedDialog";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { useFeeds, usePollFeed } from "@/lib/hooks";
+import { useFeeds, usePollFeed, useTags } from "@/lib/hooks";
+import type { Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
+import type { ArticleView } from "@distill/shared";
 
 interface FeedSidebarProps {
-  selectedFeedId: string | null;
-  onSelectFeed: (id: string | null) => void;
+  selection: Selection;
+  onSelect: (selection: Selection) => void;
 }
 
-export default function FeedSidebar({ selectedFeedId, onSelectFeed }: FeedSidebarProps) {
+const SMART_VIEWS: { view: ArticleView; label: string }[] = [
+  { view: "unread", label: "Unread" },
+  { view: "starred", label: "Starred" },
+  { view: "cleared", label: "Cleared" },
+];
+
+function navButtonClass(active: boolean) {
+  return cn(
+    "flex w-full items-center rounded-md px-2 py-1.5 text-sm",
+    active ? "bg-neutral-100 font-medium" : "hover:bg-neutral-50",
+  );
+}
+
+export default function FeedSidebar({ selection, onSelect }: FeedSidebarProps) {
   const { data: feeds = [], isLoading } = useFeeds();
+  const { data: tags = [] } = useTags();
   const pollFeed = usePollFeed();
 
   return (
@@ -27,22 +43,41 @@ export default function FeedSidebar({ selectedFeedId, onSelectFeed }: FeedSideba
         </button>
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-xs font-medium text-neutral-500">Feeds</span>
-        <AddFeedDialog />
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2 pb-4">
-        <button
-          type="button"
-          onClick={() => onSelectFeed(null)}
-          className={cn(
-            "flex w-full items-center rounded-md px-2 py-1.5 text-sm",
-            selectedFeedId === null ? "bg-neutral-100 font-medium" : "hover:bg-neutral-50",
-          )}
-        >
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
+        <button type="button" onClick={() => onSelect({ kind: "all" })} className={navButtonClass(selection.kind === "all")}>
           All
         </button>
+        {SMART_VIEWS.map((sv) => (
+          <button
+            key={sv.view}
+            type="button"
+            onClick={() => onSelect({ kind: "view", view: sv.view })}
+            className={navButtonClass(selection.kind === "view" && selection.view === sv.view)}
+          >
+            {sv.label}
+          </button>
+        ))}
+
+        {tags.length > 0 && (
+          <>
+            <div className="mt-4 px-2 pb-1 text-xs font-medium text-neutral-500">Tags</div>
+            {tags.map((tag) => (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() => onSelect({ kind: "tag", id: tag.id })}
+                className={navButtonClass(selection.kind === "tag" && selection.id === tag.id)}
+              >
+                {tag.name}
+              </button>
+            ))}
+          </>
+        )}
+
+        <div className="mt-4 flex items-center justify-between px-2 pb-1">
+          <span className="text-xs font-medium text-neutral-500">Feeds</span>
+          <AddFeedDialog />
+        </div>
 
         {isLoading && <p className="px-2 py-1.5 text-xs text-neutral-400">Loading feeds…</p>}
         {!isLoading && feeds.length === 0 && (
@@ -53,10 +88,10 @@ export default function FeedSidebar({ selectedFeedId, onSelectFeed }: FeedSideba
           <div key={feed.id} className="group flex items-center gap-1">
             <button
               type="button"
-              onClick={() => onSelectFeed(feed.id)}
+              onClick={() => onSelect({ kind: "feed", id: feed.id })}
               className={cn(
                 "flex flex-1 items-center gap-2 truncate rounded-md px-2 py-1.5 text-left text-sm",
-                selectedFeedId === feed.id ? "bg-neutral-100 font-medium" : "hover:bg-neutral-50",
+                selection.kind === "feed" && selection.id === feed.id ? "bg-neutral-100 font-medium" : "hover:bg-neutral-50",
               )}
               title={feed.lastError ?? undefined}
             >

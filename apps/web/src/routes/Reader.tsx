@@ -2,22 +2,23 @@ import { useState } from "react";
 import ArticleList from "@/components/ArticleList";
 import ArticleReader from "@/components/ArticleReader";
 import FeedSidebar from "@/components/FeedSidebar";
+import type { Selection } from "@/lib/selection";
 
 export default function Reader() {
-  const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   return (
     <div className="flex h-screen bg-neutral-50 text-neutral-900">
       <FeedSidebar
-        selectedFeedId={selectedFeedId}
-        onSelectFeed={(id) => {
-          setSelectedFeedId(id);
+        selection={selection}
+        onSelect={(next) => {
+          setSelection(next);
           setSelectedArticleId(null);
         }}
       />
       <ArticleList
-        feedId={selectedFeedId}
+        selection={selection}
         selectedArticleId={selectedArticleId}
         onSelectArticle={setSelectedArticleId}
       />
