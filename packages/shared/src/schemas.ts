@@ -81,11 +81,23 @@ export const createCredentialSchema = z
   });
 export type CreateCredentialInput = z.infer<typeof createCredentialSchema>;
 
+// PLAN §8.4 — persisted as a merge-patch into user_settings.rsvp_prefs
+// (jsonb), so every field stays optional here too.
+export const rsvpPrefsSchema = z.object({
+  wpm: z.number().int().min(100).max(1000).optional(),
+  wordColor: z.string().min(1).max(30).optional(),
+  backgroundColor: z.string().min(1).max(30).optional(),
+  pivotColor: z.string().min(1).max(30).optional(),
+  dimLevel: z.number().min(0).max(1).optional(),
+  punctuationPauseEnabled: z.boolean().optional(),
+});
+export type RsvpPrefsInput = z.infer<typeof rsvpPrefsSchema>;
+
 export const patchSettingsSchema = z.object({
   defaultRetentionReadDays: z.number().int().positive().optional(),
   defaultRetentionUnreadDays: z.number().int().positive().optional(),
   readerTheme: z.record(z.string(), z.unknown()).optional(),
-  rsvpPrefs: z.record(z.string(), z.unknown()).optional(),
+  rsvpPrefs: rsvpPrefsSchema.optional(),
   ttsPrefs: z.record(z.string(), z.unknown()).optional(),
   defaultSummaryProvider: z.enum(SUMMARY_PROVIDERS).nullable().optional(),
   defaultTtsProvider: z.enum(TTS_PROVIDERS).nullable().optional(),

@@ -94,6 +94,9 @@ export interface ArticleListItemDTO {
 export interface ArticleDetailDTO extends ArticleListItemDTO {
   url: string;
   contentHtml: string;
+  // Plain text, used by client-only modules driven off the normalized body
+  // (RSVP speed-reader today; TTS synthesis later) rather than the HTML.
+  contentText: string;
   discussionUrl: string | null;
 }
 
@@ -120,11 +123,23 @@ export interface CredentialDTO {
   createdAt: string;
 }
 
+// PLAN §8.4 — persisted RSVP speed-reader preferences. All fields optional
+// so a partial patch (and an empty `{}` default row) both parse cleanly;
+// the reader falls back to its own defaults for anything unset.
+export interface RsvpPrefs {
+  wpm?: number;
+  wordColor?: string;
+  backgroundColor?: string;
+  pivotColor?: string;
+  dimLevel?: number;
+  punctuationPauseEnabled?: boolean;
+}
+
 export interface SettingsDTO {
   defaultRetentionReadDays: number;
   defaultRetentionUnreadDays: number;
   readerTheme: Record<string, unknown>;
-  rsvpPrefs: Record<string, unknown>;
+  rsvpPrefs: RsvpPrefs;
   ttsPrefs: Record<string, unknown>;
   defaultSummaryProvider: SummaryProviderKind | null;
   defaultTtsProvider: TtsProviderKind | null;
