@@ -89,14 +89,26 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
           <span>{article.feedTitle}</span>
           {article.author && <span>· {article.author}</span>}
           {article.publishedAt && <span>· {new Date(article.publishedAt).toLocaleDateString()}</span>}
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto text-xs underline underline-offset-2"
-          >
-            Open original
-          </a>
+          <span className="ml-auto flex items-center gap-3">
+            {article.discussionUrl && (
+              <a
+                href={article.discussionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs underline underline-offset-2"
+              >
+                View discussion
+              </a>
+            )}
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs underline underline-offset-2"
+            >
+              Open original
+            </a>
+          </span>
         </div>
 
         {article.extractionStatus !== "ok" && (

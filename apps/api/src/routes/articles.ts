@@ -235,6 +235,7 @@ articlesRouter.get("/:id", async (c) => {
       extractionStatus: article.extractionStatus,
       url: article.url,
       contentHtml: article.contentHtml,
+      discussionUrl: article.discussionUrl,
       readAt: articleState.readAt,
       starred: articleState.starred,
       clearedAt: articleState.clearedAt,

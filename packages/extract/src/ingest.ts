@@ -65,6 +65,7 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
           userId: feedRow.userId,
           guid: item.guid,
           url: item.url,
+          discussionUrl: item.discussionUrl ?? null,
           title: item.title,
           author: item.author,
           publishedAt: item.publishedAt,

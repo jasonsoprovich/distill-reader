@@ -24,6 +24,9 @@ export interface RawItem {
   author: string | null;
   publishedAt: Date | null;
   contentHtml: string | null;
+  // Secondary metadata (PLAN §5.2) — the HN comments page for
+  // api_hackernews items; absent for every other feed kind.
+  discussionUrl?: string | null;
 }
 
 export interface ExtractedArticle {
@@ -80,6 +83,7 @@ export interface ArticleListItemDTO {
 export interface ArticleDetailDTO extends ArticleListItemDTO {
   url: string;
   contentHtml: string;
+  discussionUrl: string | null;
 }
 
 export interface ArticlesPage {

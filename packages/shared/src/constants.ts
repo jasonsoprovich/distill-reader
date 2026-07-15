@@ -17,10 +17,10 @@ export interface PreseedSource {
   url: string;
 }
 
-// Phase 2 preseed set (PLAN §5.5). Hacker News is API-adapter-based and is
-// preseeded in Phase 4 once that adapter exists.
+// Preseed set (PLAN §5.5).
 export const PRESEED_SOURCES: PreseedSource[] = [
   { name: "The Hacker News", url: "https://thehackernews.com" },
+  { name: "Hacker News (YC)", url: "https://news.ycombinator.com" },
   { name: "Krebs on Security", url: "https://krebsonsecurity.com" },
   { name: "Dark Reading", url: "https://www.darkreading.com" },
   { name: "BleepingComputer", url: "https://www.bleepingcomputer.com" },

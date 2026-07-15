@@ -27,6 +27,9 @@ export const article = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     guid: text("guid").notNull(),
     url: text("url").notNull(),
+    // Secondary metadata (PLAN §5.2) — the HN comments page for
+    // api_hackernews items; null for every other feed kind.
+    discussionUrl: text("discussion_url"),
     title: text("title").notNull(),
     author: text("author"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
