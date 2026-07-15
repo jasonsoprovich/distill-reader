@@ -1,0 +1,1 @@
+ALTER TABLE "article_state" ADD COLUMN "last_playback_position_seconds" numeric;

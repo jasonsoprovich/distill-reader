@@ -15,6 +15,13 @@
       "when": 1784086706843,
       "tag": "0001_milky_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784133413026,
+      "tag": "0002_many_punisher",
+      "breakpoints": true
     }
   ]
 }

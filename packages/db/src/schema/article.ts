@@ -4,6 +4,7 @@ import {
   timestamp,
   boolean,
   integer,
+  numeric,
   uuid,
   pgEnum,
   unique,
@@ -62,6 +63,8 @@ export const articleState = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
     starred: boolean("starred").default(false).notNull(),
     clearedAt: timestamp("cleared_at", { withTimezone: true }),
+    // TTS audio player resume position (PLAN §7.3), null until playback starts.
+    lastPlaybackPositionSeconds: numeric("last_playback_position_seconds"),
   },
   (table) => [
     unique("article_state_user_id_article_id_unique").on(table.userId, table.articleId),
