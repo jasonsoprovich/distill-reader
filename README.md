@@ -36,7 +36,7 @@ docker compose up --build
 
 ## Status
 
-Phase 2 (feeds & ingestion) complete — see `docs/PLAN.md` §13 for the phased build order.
+Phase 3 (read-state & organization) complete — see `docs/PLAN.md` §13 for the phased build order.
 
 ## Scale-up security checklist
 
