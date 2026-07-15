@@ -12,6 +12,9 @@ import type {
   SummaryDTO,
   SummaryProviderKind,
   TagDTO,
+  TtsAudioDTO,
+  TtsProviderKind,
+  TtsVoiceDTO,
 } from "@distill/shared";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -104,6 +107,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(provider ? { provider } : {}),
     }),
+
+  getTtsAudio: async (articleId: string) => {
+    try {
+      return await apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  },
+  requestTts: (articleId: string, opts: { provider?: TtsProviderKind; voice?: string } = {}) =>
+    apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts`, { method: "POST", body: JSON.stringify(opts) }),
+  updatePlaybackPosition: (articleId: string, positionSeconds: number) =>
+    apiFetch<{ positionSeconds: number | null }>(`/articles/${articleId}/playback-position`, {
+      method: "POST",
+      body: JSON.stringify({ positionSeconds }),
+    }),
+  listTtsVoices: (provider: TtsProviderKind) =>
+    apiFetch<TtsVoiceDTO[]>(`/tts/voices?provider=${encodeURIComponent(provider)}`),
 
   listCredentials: () => apiFetch<CredentialDTO[]>("/credentials"),
   createCredential: (input: CreateCredentialInput) =>

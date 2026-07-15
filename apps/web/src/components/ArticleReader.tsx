@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckIcon, SparklesIcon, StarIcon, XIcon, ZapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import AudioPlayer from "@/components/AudioPlayer";
 import RsvpReader from "@/components/RsvpReader";
 import { useArticle, useClearArticle, useMarkRead, useRequestSummary, useStarArticle, useSummary } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -165,6 +166,7 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
         )}
 
         <SummaryPanel articleId={article.id} />
+        <AudioPlayer articleId={article.id} initialPositionSeconds={article.playbackPositionSeconds} />
 
         <div
           className="prose prose-neutral mt-6 max-w-none leading-relaxed"

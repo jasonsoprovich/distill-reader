@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ArrowLeftIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { CREDENTIAL_PROVIDERS, SUMMARY_PROVIDERS } from "@distill/shared";
-import type { CredentialProviderKind, SummaryProviderKind } from "@distill/shared";
+import { CREDENTIAL_PROVIDERS, SUMMARY_PROVIDERS, TTS_PROVIDERS } from "@distill/shared";
+import type { CredentialProviderKind, SummaryProviderKind, TtsProviderKind } from "@distill/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,6 +168,35 @@ function DefaultProviderPicker() {
   );
 }
 
+function DefaultTtsProviderPicker() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+
+  if (!settings) return null;
+
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+      Default TTS provider
+      <select
+        className={selectClass()}
+        value={settings.defaultTtsProvider ?? ""}
+        onChange={(e) =>
+          updateSettings.mutate({
+            defaultTtsProvider: e.target.value ? (e.target.value as TtsProviderKind) : null,
+          })
+        }
+      >
+        <option value="">None</option>
+        {TTS_PROVIDERS.map((p) => (
+          <option key={p} value={p}>
+            {PROVIDER_LABELS[p]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Settings() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -181,6 +210,14 @@ export default function Settings() {
       <section className="mt-6 flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-neutral-700">AI summaries</h2>
         <DefaultProviderPicker />
+      </section>
+
+      <section className="mt-8 flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-neutral-700">Audio narration (TTS)</h2>
+        <p className="text-xs text-neutral-400">
+          Voice and playback speed are set from the Listen panel on each article.
+        </p>
+        <DefaultTtsProviderPicker />
       </section>
 
       <section className="mt-8 flex flex-col gap-3">
