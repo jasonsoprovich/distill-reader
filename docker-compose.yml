@@ -62,11 +62,18 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      PIPER_BASE_URL: ${PIPER_BASE_URL}
       LOG_LEVEL: ${LOG_LEVEL}
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
-      - audio_storage:${AUDIO_STORAGE_PATH}:ro
+      # rw, not ro: on-demand summary/TTS generation runs synchronously in
+      # the API process (mirrors the existing summary route — no job-queue
+      # infrastructure exists elsewhere in this codebase), so the API
+      # writes synthesized audio files here itself rather than dispatching
+      # to the worker.
+      - audio_storage:${AUDIO_STORAGE_PATH}:rw
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,11 +132,17 @@ services:
     volumes:
       - ollama_data:/root/.ollama
 
-  # Enable with: docker compose --profile piper up
+  # Enable with: docker compose --profile piper up. Builds the official
+  # piper-tts[http] HTTP server (docker/piper/Dockerfile) rather than
+  # pulling rhasspy/wyoming-piper, which speaks the Wyoming protocol, not
+  # HTTP — incompatible with this project's base_url provider clients.
   piper:
-    image: rhasspy/wyoming-piper:latest
+    build:
+      context: docker/piper
     profiles: ["piper"]
     restart: unless-stopped
+    environment:
+      PIPER_VOICE: ${PIPER_VOICE:-en_US-lessac-medium}
     volumes:
       - piper_data:/data
 

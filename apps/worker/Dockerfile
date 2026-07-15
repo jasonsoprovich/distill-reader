@@ -18,6 +18,8 @@ COPY tsconfig.base.json ./
 COPY apps/worker apps/worker
 COPY packages/db packages/db
 COPY packages/shared packages/shared
+COPY packages/extract packages/extract
+COPY packages/providers packages/providers
 RUN pnpm --filter @distill/worker... run build
 
 FROM base AS runtime
@@ -27,10 +29,14 @@ COPY --from=build /repo/pnpm-workspace.yaml /repo/pnpm-lock.yaml /repo/package.j
 COPY --from=build /repo/apps/worker/package.json apps/worker/package.json
 COPY --from=build /repo/packages/db/package.json packages/db/package.json
 COPY --from=build /repo/packages/shared/package.json packages/shared/package.json
+COPY --from=build /repo/packages/extract/package.json packages/extract/package.json
+COPY --from=build /repo/packages/providers/package.json packages/providers/package.json
 RUN pnpm install --frozen-lockfile --prod --filter @distill/worker...
 COPY --from=build /repo/apps/worker/dist apps/worker/dist
 COPY --from=build /repo/packages/db/dist packages/db/dist
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
+COPY --from=build /repo/packages/extract/dist packages/extract/dist
+COPY --from=build /repo/packages/providers/dist packages/providers/dist
 RUN mkdir -p /data/audio && chown app:app /data/audio
 USER app
 CMD ["node", "apps/worker/dist/index.js"]

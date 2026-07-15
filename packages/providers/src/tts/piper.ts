@@ -5,7 +5,14 @@ import { TtsProviderError, type TtsSynthesizeRequest, type TtsSynthesizeResult, 
 
 // piper.http_server's /voices returns a dict keyed by voice/model id
 // (`{ "<voice name>": { <voice config> }, ... }`), not a list — the key IS
-// the identifier accepted by /synthesize's `voice` field.
+// the identifier accepted by the synthesis endpoint's `voice` field.
+//
+// Verified against the actually-installed piper-tts==1.4.2 package (pinned
+// in docker/piper/Dockerfile), not just its docs: the currently *released*
+// HTTP server synthesizes via `POST /` and has no `/synthesize` or `/info`
+// route — those only exist on piper1-gpl's unreleased GitHub main branch.
+// If the pinned version is ever bumped, re-verify this against the new
+// release before assuming `/synthesize` works.
 type PiperVoicesResponse = Record<string, unknown>;
 
 // Piper's base_url is a self-hosted sidecar address, often on a private
@@ -33,7 +40,7 @@ export function createPiperClient(baseUrl: string): TtsProviderClient {
 
       let response: Response;
       try {
-        response = await safeFetch(`${root}/synthesize`, {
+        response = await safeFetch(root, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           timeoutMs: TTS_REQUEST_TIMEOUT_MS,
