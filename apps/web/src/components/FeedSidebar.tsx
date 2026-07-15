@@ -1,4 +1,5 @@
-import { RefreshCwIcon } from "lucide-react";
+import { RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 import AddFeedDialog from "@/components/AddFeedDialog";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
@@ -34,13 +35,18 @@ export default function FeedSidebar({ selection, onSelect }: FeedSidebarProps) {
     <aside className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-white">
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <span className="text-sm font-semibold">Distill</span>
-        <button
-          type="button"
-          onClick={() => authClient.signOut()}
-          className="text-xs text-neutral-500 hover:text-neutral-900"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-3">
+          <Link to="/settings" title="Settings" className="text-neutral-500 hover:text-neutral-900">
+            <SettingsIcon className="size-4" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => authClient.signOut()}
+            className="text-xs text-neutral-500 hover:text-neutral-900"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3">

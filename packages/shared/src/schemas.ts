@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FEED_KINDS } from "./types.js";
+import { CREDENTIAL_PROVIDERS, FEED_KINDS, SUMMARY_PROVIDERS, TTS_PROVIDERS } from "./types.js";
 
 export const previewFeedSchema = z.object({
   url: z.url(),
@@ -63,3 +63,37 @@ export const readAllSchema = z.object({
   tagId: z.uuid().optional(),
 });
 export type ReadAllInput = z.infer<typeof readAllSchema>;
+
+// Providers that require a secret key; ollama/piper are self-hosted and
+// addressed via baseUrl instead (PLAN §7.1/§10.3).
+const KEYED_CREDENTIAL_PROVIDERS = new Set(["openai", "anthropic", "elevenlabs"]);
+
+export const createCredentialSchema = z
+  .object({
+    provider: z.enum(CREDENTIAL_PROVIDERS),
+    label: z.string().min(1).max(200),
+    secret: z.string().min(1).max(4000).optional(),
+    baseUrl: z.url().optional(),
+  })
+  .refine((data) => !KEYED_CREDENTIAL_PROVIDERS.has(data.provider) || Boolean(data.secret), {
+    message: "secret is required for this provider",
+    path: ["secret"],
+  });
+export type CreateCredentialInput = z.infer<typeof createCredentialSchema>;
+
+export const patchSettingsSchema = z.object({
+  defaultRetentionReadDays: z.number().int().positive().optional(),
+  defaultRetentionUnreadDays: z.number().int().positive().optional(),
+  readerTheme: z.record(z.string(), z.unknown()).optional(),
+  rsvpPrefs: z.record(z.string(), z.unknown()).optional(),
+  ttsPrefs: z.record(z.string(), z.unknown()).optional(),
+  defaultSummaryProvider: z.enum(SUMMARY_PROVIDERS).nullable().optional(),
+  defaultTtsProvider: z.enum(TTS_PROVIDERS).nullable().optional(),
+});
+export type PatchSettingsInput = z.infer<typeof patchSettingsSchema>;
+
+export const requestSummarySchema = z.object({
+  provider: z.enum(SUMMARY_PROVIDERS).optional(),
+  model: z.string().min(1).max(200).optional(),
+});
+export type RequestSummaryInput = z.infer<typeof requestSummarySchema>;

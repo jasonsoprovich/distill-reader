@@ -6,6 +6,17 @@ export type FeedKind = (typeof FEED_KINDS)[number];
 export const EXTRACTION_STATUSES = ["ok", "partial", "failed"] as const;
 export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
 
+// Mirrors the db `summary_provider` / `tts_provider` / `credential_provider`
+// enums (packages/db/src/schema/ai.ts, settings.ts).
+export const SUMMARY_PROVIDERS = ["openai", "anthropic", "ollama"] as const;
+export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
+
+export const TTS_PROVIDERS = ["elevenlabs", "piper"] as const;
+export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
+
+export const CREDENTIAL_PROVIDERS = [...SUMMARY_PROVIDERS, ...TTS_PROVIDERS] as const;
+export type CredentialProviderKind = (typeof CREDENTIAL_PROVIDERS)[number];
+
 // --- Ingestion pipeline (packages/extract) -------------------------------
 
 export interface DiscoveredFeed {
@@ -89,4 +100,32 @@ export interface ArticleDetailDTO extends ArticleListItemDTO {
 export interface ArticlesPage {
   items: ArticleListItemDTO[];
   nextCursor: string | null;
+}
+
+export interface SummaryDTO {
+  provider: SummaryProviderKind;
+  model: string;
+  content: string;
+  createdAt: string;
+}
+
+// Secrets are write-only (PLAN §10.3) — `hasSecret` tells the UI whether one
+// is on file without ever exposing it after creation.
+export interface CredentialDTO {
+  id: string;
+  provider: CredentialProviderKind;
+  label: string;
+  baseUrl: string | null;
+  hasSecret: boolean;
+  createdAt: string;
+}
+
+export interface SettingsDTO {
+  defaultRetentionReadDays: number;
+  defaultRetentionUnreadDays: number;
+  readerTheme: Record<string, unknown>;
+  rsvpPrefs: Record<string, unknown>;
+  ttsPrefs: Record<string, unknown>;
+  defaultSummaryProvider: SummaryProviderKind | null;
+  defaultTtsProvider: TtsProviderKind | null;
 }

@@ -9,6 +9,7 @@ export class ResponseTooLargeError extends SafeFetchError {}
 export interface SafeFetchOptions {
   method?: string;
   headers?: Record<string, string>;
+  body?: BodyInit;
   timeoutMs?: number;
   maxRedirects?: number;
   // Known internal sidecar hosts (Ollama/Piper base_url) that are a
@@ -79,6 +80,7 @@ export async function safeFetch(inputUrl: string, opts: SafeFetchOptions = {}): 
     const response = await fetch(currentUrl, {
       method: opts.method ?? "GET",
       headers: { "User-Agent": USER_AGENT, ...opts.headers },
+      body: opts.body,
       redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),
     });

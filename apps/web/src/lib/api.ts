@@ -2,9 +2,15 @@ import type {
   ArticleDetailDTO,
   ArticlesPage,
   ArticleView,
+  CreateCredentialInput,
   CreateFeedInput,
+  CredentialDTO,
   DiscoveredFeed,
   FeedDTO,
+  PatchSettingsInput,
+  SettingsDTO,
+  SummaryDTO,
+  SummaryProviderKind,
   TagDTO,
 } from "@distill/shared";
 
@@ -84,4 +90,27 @@ export const api = {
     }),
   readAllArticles: (params: ReadAllParams) =>
     apiFetch<{ updated: number }>("/articles/read-all", { method: "POST", body: JSON.stringify(params) }),
+
+  getSummary: async (articleId: string) => {
+    try {
+      return await apiFetch<SummaryDTO>(`/articles/${articleId}/summary`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  },
+  requestSummary: (articleId: string, provider?: SummaryProviderKind) =>
+    apiFetch<SummaryDTO>(`/articles/${articleId}/summary`, {
+      method: "POST",
+      body: JSON.stringify(provider ? { provider } : {}),
+    }),
+
+  listCredentials: () => apiFetch<CredentialDTO[]>("/credentials"),
+  createCredential: (input: CreateCredentialInput) =>
+    apiFetch<CredentialDTO>("/credentials", { method: "POST", body: JSON.stringify(input) }),
+  deleteCredential: (id: string) => apiFetch<void>(`/credentials/${id}`, { method: "DELETE" }),
+
+  getSettings: () => apiFetch<SettingsDTO>("/settings"),
+  updateSettings: (patch: PatchSettingsInput) =>
+    apiFetch<SettingsDTO>("/settings", { method: "PATCH", body: JSON.stringify(patch) }),
 };

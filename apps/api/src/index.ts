@@ -6,8 +6,10 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { auth, trustedOrigins } from "./auth.js";
 import { articlesRouter } from "./routes/articles.js";
+import { credentialsRouter } from "./routes/credentials.js";
 import { feedsRouter } from "./routes/feeds.js";
 import { imagesRouter } from "./routes/images.js";
+import { settingsRouter } from "./routes/settings.js";
 import { tagsRouter } from "./routes/tags.js";
 
 const app = new Hono();
@@ -49,6 +51,8 @@ const jsonApiCors = cors({
 app.use("/feeds/*", jsonApiCors);
 app.use("/tags/*", jsonApiCors);
 app.use("/articles/*", jsonApiCors);
+app.use("/credentials/*", jsonApiCors);
+app.use("/settings/*", jsonApiCors);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -79,6 +83,8 @@ app.route("/feeds", feedsRouter);
 app.route("/tags", tagsRouter);
 app.route("/articles", articlesRouter);
 app.route("/img", imagesRouter);
+app.route("/credentials", credentialsRouter);
+app.route("/settings", settingsRouter);
 
 const port = Number(process.env.API_PORT ?? 3001);
 

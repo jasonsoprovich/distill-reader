@@ -12,6 +12,7 @@
   "dependencies": {
     "@distill/db": "workspace:*",
     "@distill/extract": "workspace:*",
+    "@distill/providers": "workspace:*",
     "@distill/shared": "workspace:*",
     "drizzle-orm": "^0.44.6",
     "node-cron": "^4.2.1"

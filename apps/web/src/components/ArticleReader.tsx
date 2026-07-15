@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { CheckIcon, StarIcon, XIcon } from "lucide-react";
+import { CheckIcon, SparklesIcon, StarIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useArticle, useClearArticle, useMarkRead, useStarArticle } from "@/lib/hooks";
+import { useArticle, useClearArticle, useMarkRead, useRequestSummary, useStarArticle, useSummary } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 interface ArticleReaderProps {
@@ -10,6 +10,40 @@ interface ArticleReaderProps {
 
 // Debounced so a quick skim-and-move-on doesn't mark every article read.
 const AUTO_READ_DELAY_MS = 1200;
+
+function SummaryPanel({ articleId }: { articleId: string }) {
+  const { data: summary, isLoading } = useSummary(articleId);
+  const requestSummary = useRequestSummary();
+
+  if (isLoading) return null;
+
+  if (!summary) {
+    return (
+      <div className="mt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => requestSummary.mutate({ articleId })}
+          disabled={requestSummary.isPending}
+        >
+          <SparklesIcon className="size-4" />
+          {requestSummary.isPending ? "Summarizing…" : "Summarize"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-neutral-500">
+          Summary · {summary.provider} {summary.model}
+        </span>
+      </div>
+      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-neutral-800">{summary.content}</p>
+    </div>
+  );
+}
 
 export default function ArticleReader({ articleId }: ArticleReaderProps) {
   const { data: article, isLoading } = useArticle(articleId);
@@ -118,6 +152,8 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
               : "This extraction may be incomplete — open the original if something looks missing."}
           </p>
         )}
+
+        <SummaryPanel articleId={article.id} />
 
         <div
           className="prose prose-neutral mt-6 max-w-none leading-relaxed"

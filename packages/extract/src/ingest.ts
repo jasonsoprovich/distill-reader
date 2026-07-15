@@ -11,6 +11,10 @@ export interface IngestResult {
   feedId: string;
   itemsFetched: number;
   articlesInserted: number;
+  // Ids of the articles actually inserted this poll (excludes dedup skips),
+  // so callers can act on just the new ones — e.g. the worker's
+  // auto-summarize-at-ingest hook (PLAN §6.2).
+  insertedArticleIds: string[];
   error: string | null;
 }
 
@@ -52,6 +56,7 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
     });
 
     let inserted = 0;
+    const insertedArticleIds: string[] = [];
     for (const item of items) {
       const extracted = await extractArticle(item.url);
       const contentHtml = extracted.contentHtml
@@ -79,7 +84,10 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
         .onConflictDoNothing({ target: [article.feedId, article.guid] })
         .returning({ id: article.id });
 
-      if (row) inserted += 1;
+      if (row) {
+        inserted += 1;
+        insertedArticleIds.push(row.id);
+      }
     }
 
     await db
@@ -87,7 +95,13 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
       .set({ lastPolledAt: new Date(), lastError: null, consecutiveFailures: 0 })
       .where(eq(feed.id, feedRow.id));
 
-    return { feedId: feedRow.id, itemsFetched: items.length, articlesInserted: inserted, error: null };
+    return {
+      feedId: feedRow.id,
+      itemsFetched: items.length,
+      articlesInserted: inserted,
+      insertedArticleIds,
+      error: null,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db
@@ -99,6 +113,6 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
       })
       .where(eq(feed.id, feedRow.id));
 
-    return { feedId: feedRow.id, itemsFetched: 0, articlesInserted: 0, error: message };
+    return { feedId: feedRow.id, itemsFetched: 0, articlesInserted: 0, insertedArticleIds: [], error: message };
   }
 }

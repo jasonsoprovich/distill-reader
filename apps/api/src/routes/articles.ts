@@ -1,13 +1,15 @@
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { article, articleState, db, feed, feedTag } from "@distill/db";
+import { article, articleState, auditLog, db, feed, feedTag, summary, userSettings } from "@distill/db";
+import { generateSummary, resolveModel, SUMMARY_PROMPT_VERSION, SummaryProviderError } from "@distill/providers";
 import {
   clearArticleSchema,
   listArticlesQuerySchema,
   markReadSchema,
   readAllSchema,
+  requestSummarySchema,
   starArticleSchema,
 } from "@distill/shared";
-import type { ArticleDetailDTO, ArticleListItemDTO, ArticlesPage } from "@distill/shared";
+import type { ArticleDetailDTO, ArticleListItemDTO, ArticlesPage, SummaryDTO, SummaryProviderKind } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 
@@ -255,4 +257,155 @@ articlesRouter.get("/:id", async (c) => {
     clearedAt: row.clearedAt ? row.clearedAt.toISOString() : null,
   };
   return c.json(dto);
+});
+
+function toSummaryDTO(row: typeof summary.$inferSelect): SummaryDTO {
+  return { provider: row.provider, model: row.model, content: row.content, createdAt: row.createdAt.toISOString() };
+}
+
+// Maps a provider failure to a client-actionable status — never a bare 500
+// (PLAN §6.3's precis footnote: surface provider errors explicitly).
+function statusForSummaryError(code: SummaryProviderError["code"]): 401 | 429 | 502 | 504 {
+  switch (code) {
+    case "auth":
+      return 401;
+    case "rate_limit":
+      return 429;
+    case "timeout":
+      return 504;
+    default:
+      return 502;
+  }
+}
+
+async function ownedArticleForSummary(userId: string, id: string) {
+  const [row] = await db
+    .select({ id: article.id, title: article.title, contentText: article.contentText })
+    .from(article)
+    .where(and(eq(article.id, id), eq(article.userId, userId)));
+  return row ?? null;
+}
+
+async function logSummaryError(userId: string, articleId: string, provider: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  const code = err instanceof SummaryProviderError ? err.code : "unknown";
+  await db.insert(auditLog).values({
+    userId,
+    action: "summary_error",
+    targetType: "article",
+    targetId: articleId,
+    metadata: { provider, code, message },
+  });
+}
+
+// Cached only — never triggers generation, so it's safe to call on every
+// article view without incurring provider cost.
+articlesRouter.get("/:id/summary", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const query = requestSummarySchema.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "Invalid query", issues: query.error.issues }, 400);
+
+  const owned = await ownedArticleForSummary(userId, id);
+  if (!owned) return c.json({ message: "Not found" }, 404);
+
+  const conditions = [
+    eq(summary.articleId, id),
+    eq(summary.userId, userId),
+    eq(summary.promptVersion, SUMMARY_PROMPT_VERSION),
+  ];
+  if (query.data.provider) conditions.push(eq(summary.provider, query.data.provider));
+  if (query.data.model) conditions.push(eq(summary.model, query.data.model));
+
+  const [row] = await db.select().from(summary).where(and(...conditions)).orderBy(desc(summary.createdAt)).limit(1);
+  if (!row) return c.json({ message: "No cached summary" }, 404);
+  return c.json(toSummaryDTO(row));
+});
+
+// On-demand: cache hit returns immediately; a miss generates synchronously
+// under each provider call's own bounded timeout (PLAN §6.2) — the client
+// shows a spinner for the duration rather than polling a job status, since
+// no job-queue infrastructure exists elsewhere in this codebase.
+articlesRouter.post("/:id/summary", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = requestSummarySchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+
+  const owned = await ownedArticleForSummary(userId, id);
+  if (!owned) return c.json({ message: "Not found" }, 404);
+
+  let provider: SummaryProviderKind | undefined = body.data.provider;
+  if (!provider) {
+    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+    provider = settings?.defaultSummaryProvider ?? undefined;
+  }
+  if (!provider) {
+    return c.json({ message: "No provider specified and no default summary provider configured" }, 422);
+  }
+
+  const model = resolveModel(provider, body.data.model);
+
+  const [cached] = await db
+    .select()
+    .from(summary)
+    .where(
+      and(
+        eq(summary.articleId, id),
+        eq(summary.userId, userId),
+        eq(summary.provider, provider),
+        eq(summary.model, model),
+        eq(summary.promptVersion, SUMMARY_PROMPT_VERSION),
+      ),
+    );
+  if (cached) return c.json(toSummaryDTO(cached));
+
+  try {
+    const result = await generateSummary({
+      db,
+      userId,
+      provider,
+      model,
+      articleTitle: owned.title,
+      articleText: owned.contentText,
+    });
+
+    let [row] = await db
+      .insert(summary)
+      .values({
+        articleId: id,
+        userId,
+        provider: result.provider,
+        model: result.model,
+        content: result.content,
+        promptVersion: result.promptVersion,
+      })
+      .onConflictDoNothing({
+        target: [summary.articleId, summary.userId, summary.provider, summary.model, summary.promptVersion],
+      })
+      .returning();
+
+    // A concurrent request may have won the race and inserted first —
+    // onConflictDoNothing then returns nothing, so fetch what's there.
+    if (!row) {
+      [row] = await db
+        .select()
+        .from(summary)
+        .where(
+          and(
+            eq(summary.articleId, id),
+            eq(summary.userId, userId),
+            eq(summary.provider, provider),
+            eq(summary.model, model),
+            eq(summary.promptVersion, SUMMARY_PROMPT_VERSION),
+          ),
+        );
+    }
+    return c.json(toSummaryDTO(row));
+  } catch (err) {
+    await logSummaryError(userId, id, provider, err);
+    const status = err instanceof SummaryProviderError ? statusForSummaryError(err.code) : 502;
+    const message = err instanceof Error ? err.message : "Failed to generate summary";
+    return c.json({ message }, status);
+  }
 });

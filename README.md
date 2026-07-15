@@ -36,7 +36,7 @@ docker compose up --build
 
 ## Status
 
-Phase 4 (Hacker News API adapter) complete — see `docs/PLAN.md` §13 for the phased build order.
+Phase 5 (AI summaries) complete — see `docs/PLAN.md` §13 for the phased build order.
 
 ## Scale-up security checklist
 
