@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PauseIcon, PlayIcon, RotateCcwIcon, RotateCwIcon, Volume2Icon } from "lucide-react";
-import { TTS_PROVIDERS } from "@distill/shared";
+import { buildHighlightWords, findActiveWordIndex, TTS_PROVIDERS } from "@distill/shared";
 import type { TtsProviderKind } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   useUpdatePlaybackPosition,
   useUpdateSettings,
 } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 
 interface AudioPlayerProps {
   articleId: string;
@@ -49,6 +50,7 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
   const [provider, setProvider] = useState<TtsProviderKind | undefined>(undefined);
   const [voice, setVoice] = useState<string | undefined>(undefined);
   const [speed, setSpeed] = useState(1);
+  const [highlightFollowEnabled, setHighlightFollowEnabled] = useState(false);
 
   const effectiveProvider = provider ?? settings?.defaultTtsProvider ?? null;
   const { data: voices } = useTtsVoices(effectiveProvider);
@@ -67,16 +69,28 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
     if (prefs.provider) setProvider(prefs.provider);
     if (prefs.voice) setVoice(prefs.voice);
     if (prefs.speed != null) setSpeed(prefs.speed);
+    if (prefs.highlightFollowEnabled != null) setHighlightFollowEnabled(prefs.highlightFollowEnabled);
   }, [settings]);
 
   useEffect(() => {
     if (!loadedPrefsRef.current || !provider) return;
     const timer = setTimeout(() => {
-      updateSettings.mutate({ ttsPrefs: { provider, voice, speed } });
+      updateSettings.mutate({ ttsPrefs: { provider, voice, speed, highlightFollowEnabled } });
     }, PERSIST_PREFS_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, voice, speed]);
+  }, [provider, voice, speed, highlightFollowEnabled]);
+
+  // PLAN §7.3 — karaoke-style highlight-follow, built from the timings
+  // ElevenLabs returns (null for Piper, which degrades to plain playback).
+  const words = useMemo(() => (audio?.timings ? buildHighlightWords(audio.timings) : []), [audio?.timings]);
+  const activeWordIndex = highlightFollowEnabled ? findActiveWordIndex(words, currentTime) : -1;
+  const wordRefs = useRef<Array<HTMLSpanElement | null>>([]);
+
+  useEffect(() => {
+    if (activeWordIndex < 0) return;
+    wordRefs.current[activeWordIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeWordIndex]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = speed;
@@ -235,7 +249,44 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
             </option>
           ))}
         </select>
+
+        <label
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 text-xs text-neutral-500",
+            !audio.timings && "opacity-50",
+          )}
+          title={audio.timings ? undefined : "This audio has no word timings (Piper) — highlight-follow needs ElevenLabs"}
+        >
+          <input
+            type="checkbox"
+            className="size-3.5 cursor-pointer"
+            checked={highlightFollowEnabled}
+            disabled={!audio.timings}
+            onChange={(e) => setHighlightFollowEnabled(e.target.checked)}
+          />
+          Highlight text
+        </label>
       </div>
+
+      {highlightFollowEnabled && words.length > 0 && (
+        <div className="max-h-40 overflow-y-auto rounded border border-neutral-200 bg-white px-3 py-2 text-sm leading-relaxed text-neutral-700">
+          {words.map((word, i) => (
+            <span
+              key={i}
+              ref={(el) => {
+                wordRefs.current[i] = el;
+              }}
+              className={cn(
+                "cursor-pointer rounded px-0.5",
+                i === activeWordIndex ? "bg-amber-200 text-neutral-900" : "hover:bg-neutral-100",
+              )}
+              onClick={() => seekTo(word.startSeconds)}
+            >
+              {word.text}{" "}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
