@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { account, auditLog, db, session, user, verification } from "@distill/db";
+import { hasAnyUser } from "./lib/users.js";
 
 // PLAN §10.6 — audit log for auth events. Sign-in/sign-up are the two
 // security-relevant ones for brute-force/unusual-activity monitoring; both
@@ -29,6 +30,32 @@ export const trustedOrigins = (process.env.WEB_ORIGIN ?? "http://localhost:3000"
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+// OAuth can create the app's one account (Setup.tsx offers these same
+// buttons for exactly that) as well as sign into it afterward — the
+// databaseHooks guard below is what keeps this to a single user, by
+// dynamically allowing the first account from whichever flow creates it and
+// rejecting every attempt after, so implicit sign-up doesn't need to be
+// disabled per-provider here. Each provider is only added if both its env
+// vars are set, so an unconfigured provider doesn't register a broken
+// endpoint — GET /auth/social-providers (index.ts) reports this same set to
+// the SPA so it only renders buttons that will actually work.
+function buildSocialProviders() {
+  const providers: NonNullable<Parameters<typeof betterAuth>[0]["socialProviders"]> = {};
+  if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+    providers.github = {
+      clientId: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    };
+  }
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    providers.google = {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    };
+  }
+  return providers;
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -41,13 +68,32 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  socialProviders: buildSocialProviders(),
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
+  },
+  // Belt-and-suspenders with index.ts's POST /auth/sign-up/email guard:
+  // this is the one choke point every user row passes through regardless
+  // of which flow created it (email/password OR any OAuth provider), so
+  // it's what actually guarantees the single-user invariant rather than
+  // relying on every current and future sign-up path remembering to check
+  // it individually.
+  databaseHooks: {
+    user: {
+      create: {
+        before: async () => {
+          if (await hasAnyUser()) {
+            throw new APIError("BAD_REQUEST", { message: "Sign-up is disabled — an account already exists." });
+          }
+        },
+      },
+    },
   },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
       if (ctx.path === "/sign-in/email") await logAuthEvent("sign_in", ctx);
       else if (ctx.path === "/sign-up/email") await logAuthEvent("sign_up", ctx);
+      else if (ctx.path.startsWith("/callback/")) await logAuthEvent("sign_in", ctx);
     }),
   },
 });

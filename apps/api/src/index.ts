@@ -1,10 +1,9 @@
 import { serve } from "@hono/node-server";
-import { db, user } from "@distill/db";
-import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { auth, trustedOrigins } from "./auth.js";
+import { hasAnyUser } from "./lib/users.js";
 import { authRateLimit, globalRateLimit } from "./middleware/rate-limit.js";
 import { articlesRouter } from "./routes/articles.js";
 import { credentialsRouter } from "./routes/credentials.js";
@@ -75,15 +74,21 @@ app.use("/tts/*", jsonApiCors);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
-async function hasAnyUser() {
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(user);
-  return Number(count) > 0;
-}
-
 // Public so the SPA can decide whether to show the first-run setup page.
 app.get("/setup/status", async (c) => {
   const needsSetup = !(await hasAnyUser());
   return c.json({ needsSetup });
+});
+
+// Public so the login page only renders OAuth buttons for providers the
+// operator has actually configured credentials for (auth.ts builds
+// socialProviders from these same env vars) — a button for an unconfigured
+// provider would just 404/error when clicked.
+app.get("/auth/social-providers", (c) => {
+  return c.json({
+    github: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+    google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+  });
 });
 
 // Self-hosted single-user app: sign-up creates the one account during

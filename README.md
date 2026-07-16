@@ -44,6 +44,12 @@ docker compose --profile piper up -d piper
 
 Then, in the app's Settings → API credentials, add a credential for the provider with its base URL — `http://piper:5000` for the bundled Piper sidecar, or your own `piper.http_server` address if you're running it elsewhere (same idea for Ollama, typically `http://ollama:11434`). See `.env.example`'s `PIPER_BASE_URL`/`OLLAMA_BASE_URL`/`PIPER_VOICE` for the matching operator-side config.
 
+### Optional: OAuth sign-in (GitHub, Google)
+
+Distill is still single-user — OAuth is an alternative to setting a password, not a way to invite additional accounts. Whichever method (email/password or OAuth) creates the app's one account first is final; every sign-up attempt after that is rejected regardless of which flow it comes through.
+
+To enable a provider, register an OAuth app with it using the callback URL `{BETTER_AUTH_URL}/auth/callback/github` (or `/google`) — `http://localhost:3001/auth/callback/github` for local dev — then set that provider's `*_CLIENT_ID`/`*_CLIENT_SECRET` pair in `.env`. A provider with no credentials configured simply doesn't show a button on the sign-in/setup pages. Apple sign-in isn't wired up — it needs a paid Apple Developer account and a more involved JWT-based client secret, unlike GitHub/Google's plain client ID + secret.
+
 ## Status
 
 Phase 8 (Hardening & polish) complete — see `docs/PLAN.md` §13 for the phased build order. Highlight-follow (karaoke sync, Phase 7) is deferred per §14's own lean; basic playback, caching, and resume are done.

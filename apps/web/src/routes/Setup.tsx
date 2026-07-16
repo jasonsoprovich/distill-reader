@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
+import SocialSignInButtons from "@/components/SocialSignInButtons";
 import { authClient, useSession } from "../lib/auth-client";
 import { setupStatusQueryKey, useSetupStatus } from "../lib/setup";
 
@@ -59,6 +60,8 @@ export default function Setup() {
         <p className="mt-1 text-sm text-neutral-500">
           Create the account for this instance. This only runs once.
         </p>
+
+        <SocialSignInButtons />
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>

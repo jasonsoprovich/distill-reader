@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
+import SocialSignInButtons from "@/components/SocialSignInButtons";
 import { authClient, useSession } from "../lib/auth-client";
 import { useSetupStatus } from "../lib/setup";
 
@@ -42,6 +43,8 @@ export default function Login() {
       <div className="w-full max-w-sm rounded-lg border border-neutral-200 bg-white p-8 shadow-sm">
         <h1 className="text-lg font-semibold text-neutral-900">Sign in to Distill</h1>
         <p className="mt-1 text-sm text-neutral-500">Your self-hosted reader.</p>
+
+        <SocialSignInButtons />
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>
