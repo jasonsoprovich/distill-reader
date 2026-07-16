@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { article, articleState, db, feed, feedTag, tag } from "@distill/db";
+import { article, articleState, auditLog, db, feed, feedTag, tag } from "@distill/db";
 import { discoverFeed, ingestFeed, signImageUrl } from "@distill/extract";
 import { createFeedSchema, patchFeedSchema, previewFeedSchema } from "@distill/shared";
 import type { FeedDTO, TagDTO } from "@distill/shared";
@@ -113,6 +113,16 @@ feedsRouter.post("/", async (c) => {
   }
 
   const tagsMap = await tagsByFeedId(userId);
+
+  // PLAN §10.6 — audit log for feed add.
+  await db.insert(auditLog).values({
+    userId,
+    action: "feed_create",
+    targetType: "feed",
+    targetId: row.id,
+    metadata: { sourceUrl: row.sourceUrl, kind: row.kind },
+  });
+
   return c.json(toDTO(row, tagsMap.get(row.id) ?? [], 0), 201);
 });
 
@@ -166,8 +176,18 @@ feedsRouter.delete("/:id", async (c) => {
   const result = await db
     .delete(feed)
     .where(and(eq(feed.id, id), eq(feed.userId, userId)))
-    .returning({ id: feed.id });
+    .returning({ id: feed.id, sourceUrl: feed.sourceUrl, title: feed.title });
   if (!result.length) return c.json({ message: "Not found" }, 404);
+
+  // PLAN §10.6 — audit log for feed removal.
+  await db.insert(auditLog).values({
+    userId,
+    action: "feed_delete",
+    targetType: "feed",
+    targetId: result[0].id,
+    metadata: { sourceUrl: result[0].sourceUrl, title: result[0].title },
+  });
+
   return c.body(null, 204);
 });
 

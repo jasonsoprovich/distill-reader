@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { apiCredential, db } from "@distill/db";
+import { apiCredential, auditLog, db } from "@distill/db";
 import { encryptSecret } from "@distill/providers";
 import { createCredentialSchema } from "@distill/shared";
 import type { CredentialDTO } from "@distill/shared";
@@ -49,6 +49,16 @@ credentialsRouter.post("/", async (c) => {
     })
     .returning();
 
+  // PLAN §10.6 — audit log for credential changes. Never logs the secret
+  // itself (write-only, §10.3) — only which provider/label was added.
+  await db.insert(auditLog).values({
+    userId,
+    action: "credential_create",
+    targetType: "api_credential",
+    targetId: row.id,
+    metadata: { provider: row.provider, label: row.label },
+  });
+
   return c.json(toDTO(row), 201);
 });
 
@@ -58,7 +68,16 @@ credentialsRouter.delete("/:id", async (c) => {
   const result = await db
     .delete(apiCredential)
     .where(and(eq(apiCredential.id, id), eq(apiCredential.userId, userId)))
-    .returning({ id: apiCredential.id });
+    .returning({ id: apiCredential.id, provider: apiCredential.provider, label: apiCredential.label });
   if (!result.length) return c.json({ message: "Not found" }, 404);
+
+  await db.insert(auditLog).values({
+    userId,
+    action: "credential_delete",
+    targetType: "api_credential",
+    targetId: result[0].id,
+    metadata: { provider: result[0].provider, label: result[0].label },
+  });
+
   return c.body(null, 204);
 });
