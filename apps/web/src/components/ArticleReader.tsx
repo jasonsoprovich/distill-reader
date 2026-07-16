@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
-import { ArrowLeftIcon, CheckIcon, SparklesIcon, StarIcon, Trash2Icon, ZapIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckCheckIcon,
+  ChevronDownIcon,
+  MailIcon,
+  MailOpenIcon,
+  SparklesIcon,
+  StarIcon,
+  Trash2Icon,
+  ZapIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AudioPlayer from "@/components/AudioPlayer";
 import RsvpReader from "@/components/RsvpReader";
 import {
@@ -8,16 +19,10 @@ import {
   useClearArticle,
   useMarkRead,
   useRequestSummary,
-  useSettings,
   useStarArticle,
   useSummary,
 } from "@/lib/hooks";
-import {
-  DARK_READER_THEMES,
-  DEFAULT_READER_FONT_SIZE,
-  DEFAULT_READER_THEME_NAME,
-  READER_THEME_STYLES,
-} from "@/lib/reader-theme";
+import { useReaderTheme } from "@/lib/reader-theme";
 import { cn } from "@/lib/utils";
 
 interface ArticleReaderProps {
@@ -29,9 +34,11 @@ interface ArticleReaderProps {
 // Debounced so a quick skim-and-move-on doesn't mark every article read.
 const AUTO_READ_DELAY_MS = 1200;
 
-function SummaryPanel({ articleId, isDarkTheme }: { articleId: string; isDarkTheme: boolean }) {
+function SummaryPanel({ articleId }: { articleId: string }) {
   const { data: summary, isLoading } = useSummary(articleId);
   const requestSummary = useRequestSummary();
+  const { isDark: isDarkTheme, style: theme } = useReaderTheme();
+  const [open, setOpen] = useState(true);
 
   if (isLoading) return null;
 
@@ -52,41 +59,50 @@ function SummaryPanel({ articleId, isDarkTheme }: { articleId: string; isDarkThe
   }
 
   return (
-    <div
-      className={cn(
-        "mt-4 rounded-md border px-4 py-3",
-        isDarkTheme ? "border-neutral-700 bg-neutral-800" : "border-neutral-200 bg-neutral-50",
-      )}
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="mt-6 border-b pb-6"
+      style={{ borderColor: theme.muted + "33" }}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn("text-xs font-medium", isDarkTheme ? "text-neutral-400" : "text-neutral-500")}>
+      <div className="flex items-center gap-2">
+        <SparklesIcon className="size-3.5 shrink-0" style={{ color: theme.muted }} />
+        <span className="text-xs font-medium tracking-wide" style={{ color: theme.muted }}>
           Summary · {summary.provider} {summary.model}
         </span>
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto size-6"
+            title={open ? "Hide summary" : "Show summary"}
+          >
+            <ChevronDownIcon className={cn("size-4 transition-transform", !open && "-rotate-90")} />
+          </Button>
+        </CollapsibleTrigger>
       </div>
-      <p
-        className={cn(
-          "mt-2 whitespace-pre-line text-sm leading-relaxed",
-          isDarkTheme ? "text-neutral-200" : "text-neutral-800",
-        )}
-      >
-        {summary.content}
-      </p>
-    </div>
+      <CollapsibleContent>
+        <div
+          className={cn(
+            "prose mt-3 max-w-none whitespace-pre-line",
+            isDarkTheme ? "prose-invert" : "prose-neutral",
+          )}
+        >
+          {summary.content}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
 export default function ArticleReader({ articleId, onBack, className }: ArticleReaderProps) {
   const { data: article, isLoading, isError, refetch } = useArticle(articleId);
-  const { data: settings } = useSettings();
   const markRead = useMarkRead();
   const starArticle = useStarArticle();
   const clearArticle = useClearArticle();
   const [isRsvpOpen, setIsRsvpOpen] = useState(false);
 
-  const themeName = settings?.readerTheme.name ?? DEFAULT_READER_THEME_NAME;
-  const fontSize = settings?.readerTheme.fontSize ?? DEFAULT_READER_FONT_SIZE;
-  const theme = READER_THEME_STYLES[themeName];
-  const isDarkTheme = DARK_READER_THEMES.has(themeName);
+  const { style: theme, isDark: isDarkTheme, fontSize, fontStack } = useReaderTheme();
 
   useEffect(() => {
     if (!article || article.readAt) return;
@@ -145,65 +161,88 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
 
   return (
     <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
-      <article className="mx-auto max-w-[66ch] px-6 py-8" style={{ fontSize }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-start gap-2">
-            {onBack && (
+      <article className="mx-auto max-w-[66ch] px-6 py-8" style={{ fontSize, fontFamily: fontStack }}>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-1">
+            {onBack ? (
               <Button
                 variant="ghost"
                 size="icon"
-                className="mt-1 size-8 shrink-0 md:hidden"
+                className="size-8 shrink-0 md:hidden"
                 title="Back to articles"
                 onClick={onBack}
               >
                 <ArrowLeftIcon className="size-4" style={{ color: theme.muted }} />
               </Button>
+            ) : (
+              <span />
             )}
-            <h1 className="min-w-0 text-2xl font-semibold" style={{ color: theme.color }}>
-              {article.title}
-            </h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              title="Speed-read"
-              onClick={() => setIsRsvpOpen(true)}
-            >
-              <ZapIcon className="size-4 text-neutral-400" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              title={isRead ? "Mark unread" : "Mark read"}
-              onClick={() => markRead.mutate({ id: article.id, read: !isRead })}
-            >
-              <CheckIcon className={cn("size-4", isRead ? "text-emerald-600" : "text-neutral-400")} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              title={article.starred ? "Unstar" : "Star"}
-              onClick={() => starArticle.mutate({ id: article.id, starred: !article.starred })}
-            >
-              <StarIcon
-                className={cn("size-4", article.starred ? "text-amber-500" : "text-neutral-400")}
-                fill={article.starred ? "currentColor" : "none"}
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                title="Speed-read"
+                onClick={() => setIsRsvpOpen(true)}
+              >
+                <ZapIcon className="size-4 text-neutral-400" />
+              </Button>
+              <AudioPlayer
+                articleId={article.id}
+                articleText={article.contentText}
+                initialPositionSeconds={article.playbackPositionSeconds}
               />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              title={isCleared ? "Restore" : "Remove from feed"}
-              onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
-            >
-              <Trash2Icon className={cn("size-4", isCleared ? "text-destructive" : "text-neutral-400")} />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                title="Mark done — read & remove from feed"
+                onClick={() => {
+                  markRead.mutate({ id: article.id, read: true });
+                  clearArticle.mutate({ id: article.id, cleared: true });
+                }}
+              >
+                <CheckCheckIcon className="size-4 text-neutral-400" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                title={isRead ? "Mark unread" : "Mark read"}
+                onClick={() => markRead.mutate({ id: article.id, read: !isRead })}
+              >
+                {isRead ? (
+                  <MailOpenIcon className="size-4 text-neutral-400" />
+                ) : (
+                  <MailIcon className="size-4 text-sky-500" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                title={article.starred ? "Unstar" : "Star"}
+                onClick={() => starArticle.mutate({ id: article.id, starred: !article.starred })}
+              >
+                <StarIcon
+                  className={cn("size-4", article.starred ? "text-amber-500" : "text-neutral-400")}
+                  fill={article.starred ? "currentColor" : "none"}
+                />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                title={isCleared ? "Restore" : "Remove from feed"}
+                onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
+              >
+                <Trash2Icon className={cn("size-4", isCleared ? "text-destructive" : "text-neutral-400")} />
+              </Button>
+            </div>
           </div>
+          <h1 className="min-w-0 text-2xl font-semibold" style={{ color: theme.color }}>
+            {article.title}
+          </h1>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" style={{ color: theme.muted }}>
           <span>{article.feedTitle}</span>
@@ -244,8 +283,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
           </p>
         )}
 
-        <SummaryPanel articleId={article.id} isDarkTheme={isDarkTheme} />
-        <AudioPlayer articleId={article.id} initialPositionSeconds={article.playbackPositionSeconds} />
+        <SummaryPanel articleId={article.id} />
 
         <div
           className={cn("prose mt-6 max-w-none leading-relaxed", isDarkTheme ? "prose-invert" : "prose-neutral")}

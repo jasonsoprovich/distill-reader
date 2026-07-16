@@ -206,11 +206,14 @@ export interface TtsAudioDTO {
   timings: TtsTimings | null;
   createdAt: string;
   // Same-origin, auth-scoped stream URL (GET /tts/audio/:id) — never a
-  // direct storage path (PLAN §10.6).
+  // direct storage path (PLAN §10.6). Exception: a `data:` URI when the
+  // server generated audio but couldn't persist it to AUDIO_STORAGE_PATH —
+  // played inline once, not cached (apps/api/src/routes/articles.ts).
   url: string;
 }
 
 export interface TtsVoiceDTO {
   id: string;
   name: string;
+  category?: string;
 }

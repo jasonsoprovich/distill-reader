@@ -3,6 +3,7 @@ import { PauseIcon, PlayIcon, RotateCcwIcon, RotateCwIcon, Volume2Icon } from "l
 import { buildHighlightWords, findActiveWordIndex, TTS_PROVIDERS } from "@distill/shared";
 import type { TtsProviderKind, TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   useRequestTts,
   useSettings,
@@ -12,17 +13,26 @@ import {
   useUpdatePlaybackPosition,
   useUpdateSettings,
 } from "@/lib/hooks";
-import { DARK_READER_THEMES, DEFAULT_READER_THEME_NAME } from "@/lib/reader-theme";
 import { cn } from "@/lib/utils";
 
 interface AudioPlayerProps {
   articleId: string;
+  articleText: string;
   initialPositionSeconds: number | null;
 }
 
 const PROVIDER_LABELS: Record<TtsProviderKind, string> = {
   elevenlabs: "ElevenLabs",
   piper: "Piper (local)",
+};
+
+// ElevenLabs' own grouping — surfaced so a user's cloned/generated voices
+// aren't lost in a long premade catalog (PLAN §7.4).
+const VOICE_CATEGORY_GROUP_LABELS: Record<string, string> = {
+  cloned: "Your voices",
+  generated: "Your voices",
+  professional: "Your voices",
+  premade: "ElevenLabs voices",
 };
 
 const SKIP_SECONDS = 15;
@@ -40,13 +50,16 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export default function AudioPlayer({ articleId, initialPositionSeconds }: AudioPlayerProps) {
+export default function AudioPlayer({ articleId, articleText, initialPositionSeconds }: AudioPlayerProps) {
   const [source, setSource] = useState<TtsSource>("full");
   const { data: summary } = useSummary(articleId);
   const hasSummary = Boolean(summary);
   // Falls back to "full" if the user's saved preference is "summary" but no
   // summary has been generated for this article yet (PLAN §7.2/§7.3).
   const effectiveSource: TtsSource = source === "summary" && !hasSummary ? "full" : source;
+  // Estimated cost basis shown before generating — ElevenLabs bills
+  // per character, so this is what the user is about to spend.
+  const sourceCharCount = (effectiveSource === "summary" ? summary?.content : articleText)?.length ?? 0;
 
   const { data: audio, isLoading } = useTtsAudio(articleId, effectiveSource);
   const requestTts = useRequestTts();
@@ -54,8 +67,14 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const loadedPrefsRef = useRef(false);
+  // Set only by the actual pickers below, not inferred from state changes —
+  // otherwise the load effect's own setProvider/setVoice/etc calls (async,
+  // so this render's closure still holds pre-load defaults) can race a
+  // state-keyed persist effect into saving those defaults over the value
+  // that was just loaded (see Settings.tsx's ReaderThemePicker for the
+  // full writeup of this race).
+  const dirtyPrefsRef = useRef(false);
   const resumedRef = useRef(false);
-  const isDarkTheme = DARK_READER_THEMES.has(settings?.readerTheme.name ?? DEFAULT_READER_THEME_NAME);
 
   const [provider, setProvider] = useState<TtsProviderKind | undefined>(undefined);
   const [voice, setVoice] = useState<string | undefined>(undefined);
@@ -84,7 +103,7 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
   }, [settings]);
 
   useEffect(() => {
-    if (!loadedPrefsRef.current || !provider) return;
+    if (!dirtyPrefsRef.current) return;
     const timer = setTimeout(() => {
       updateSettings.mutate({ ttsPrefs: { provider, voice, speed, highlightFollowEnabled, source } });
     }, PERSIST_PREFS_DELAY_MS);
@@ -147,15 +166,38 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
 
   if (isLoading) return null;
 
+  function pickProvider(next: TtsProviderKind | undefined) {
+    dirtyPrefsRef.current = true;
+    setProvider(next);
+    setVoice(undefined);
+  }
+
+  function pickVoice(next: string | undefined) {
+    dirtyPrefsRef.current = true;
+    setVoice(next);
+  }
+
+  function pickSource(next: TtsSource) {
+    dirtyPrefsRef.current = true;
+    setSource(next);
+  }
+
+  function pickSpeed(next: number) {
+    dirtyPrefsRef.current = true;
+    setSpeed(next);
+  }
+
+  function pickHighlightFollow(next: boolean) {
+    dirtyPrefsRef.current = true;
+    setHighlightFollowEnabled(next);
+  }
+
   const providerVoicePicker = (
     <div className="flex flex-wrap items-center gap-2">
       <select
         className={selectClass()}
         value={effectiveProvider ?? ""}
-        onChange={(e) => {
-          setProvider(e.target.value ? (e.target.value as TtsProviderKind) : undefined);
-          setVoice(undefined);
-        }}
+        onChange={(e) => pickProvider(e.target.value ? (e.target.value as TtsProviderKind) : undefined)}
       >
         <option value="">Default provider</option>
         {TTS_PROVIDERS.map((p) => (
@@ -165,20 +207,38 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
         ))}
       </select>
       {voices && voices.length > 0 && (
-        <select className={selectClass()} value={voice ?? ""} onChange={(e) => setVoice(e.target.value || undefined)}>
+        <select className={selectClass()} value={voice ?? ""} onChange={(e) => pickVoice(e.target.value || undefined)}>
           <option value="">Default voice</option>
-          {voices.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
+          {voices.some((v) => v.category) ? (
+            Object.entries(
+              voices.reduce<Record<string, typeof voices>>((groups, v) => {
+                const label = VOICE_CATEGORY_GROUP_LABELS[v.category ?? ""] ?? "Other voices";
+                (groups[label] ??= []).push(v);
+                return groups;
+              }, {}),
+            ).map(([label, group]) => (
+              <optgroup key={label} label={label}>
+                {group.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))
+          ) : (
+            voices.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))
+          )}
         </select>
       )}
       <select
         className={selectClass()}
         value={source}
         title={hasSummary ? undefined : "Generate a summary first to narrate it instead of the full article"}
-        onChange={(e) => setSource(e.target.value as TtsSource)}
+        onChange={(e) => pickSource(e.target.value as TtsSource)}
       >
         <option value="full">Full article</option>
         <option value="summary" disabled={!hasSummary}>
@@ -188,137 +248,148 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
     </div>
   );
 
-  if (!audio) {
-    return (
-      <div className="mt-4 flex flex-col gap-2">
-        {providerVoicePicker}
-        <Button
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => requestTts.mutate({ articleId, provider, voice, source: effectiveSource })}
-          disabled={requestTts.isPending}
-        >
-          <Volume2Icon className="size-4" />
-          {requestTts.isPending ? "Generating audio…" : "Listen"}
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className={cn(
-        "mt-4 flex flex-col gap-3 rounded-md border px-4 py-3",
-        isDarkTheme ? "border-neutral-700 bg-neutral-800" : "border-neutral-200 bg-neutral-50",
-      )}
-    >
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- narration, no track to caption */}
-      <audio
-        ref={audioRef}
-        src={audio.url}
-        crossOrigin="use-credentials"
-        onLoadedMetadata={(e) => {
-          setDuration(e.currentTarget.duration);
-          if (!resumedRef.current) {
-            resumedRef.current = true;
-            if (initialPositionSeconds) e.currentTarget.currentTime = initialPositionSeconds;
-          }
-        }}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => {
-          setIsPlaying(false);
-          updatePosition.mutate({ articleId, positionSeconds: 0 });
-        }}
-      />
-
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-neutral-500">
-          Listen · {audio.provider} {audio.voice}
-        </span>
-        {providerVoicePicker}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="size-8" title={`Back ${SKIP_SECONDS}s`} onClick={() => skip(-SKIP_SECONDS)}>
-          <RotateCcwIcon className="size-4 text-neutral-500" />
-        </Button>
-        <Button variant="ghost" size="icon" className="size-9" title={isPlaying ? "Pause" : "Play"} onClick={togglePlay}>
-          {isPlaying ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
-        </Button>
-        <Button variant="ghost" size="icon" className="size-8" title={`Forward ${SKIP_SECONDS}s`} onClick={() => skip(SKIP_SECONDS)}>
-          <RotateCwIcon className="size-4 text-neutral-500" />
-        </Button>
-
-        <span className="w-10 shrink-0 text-right text-xs text-neutral-400">{formatTime(currentTime)}</span>
-        <input
-          type="range"
-          className="h-1 flex-1 cursor-pointer accent-neutral-700"
-          min={0}
-          max={duration ?? audio.durationSeconds ?? 0}
-          step={0.1}
-          value={currentTime}
-          onChange={(e) => seekTo(Number(e.target.value))}
+    <>
+      {audio && (
+        // Kept mounted regardless of whether the popover below is open, so
+        // playback and position-tracking keep running after the user closes
+        // the controls (PLAN §7.3's resume behavior).
+        // eslint-disable-next-line jsx-a11y/media-has-caption -- narration, no track to caption
+        <audio
+          ref={audioRef}
+          src={audio.url}
+          crossOrigin="use-credentials"
+          onLoadedMetadata={(e) => {
+            setDuration(e.currentTarget.duration);
+            if (!resumedRef.current) {
+              resumedRef.current = true;
+              if (initialPositionSeconds) e.currentTarget.currentTime = initialPositionSeconds;
+            }
+          }}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => {
+            setIsPlaying(false);
+            updatePosition.mutate({ articleId, positionSeconds: 0 });
+          }}
         />
-        <span className="w-10 shrink-0 text-xs text-neutral-400">{formatTime(duration ?? audio.durationSeconds ?? 0)}</span>
-
-        <select
-          className={selectClass()}
-          value={speed}
-          onChange={(e) => setSpeed(Number(e.target.value))}
-          title="Playback speed"
-        >
-          {[0.75, 1, 1.25, 1.5, 1.75, 2].map((s) => (
-            <option key={s} value={s}>
-              {s}×
-            </option>
-          ))}
-        </select>
-
-        <label
-          className={cn(
-            "flex shrink-0 items-center gap-1.5 text-xs text-neutral-500",
-            !audio.timings && "opacity-50",
-          )}
-          title={audio.timings ? undefined : "This audio has no word timings (Piper) — highlight-follow needs ElevenLabs"}
-        >
-          <input
-            type="checkbox"
-            className="size-3.5 cursor-pointer"
-            checked={highlightFollowEnabled}
-            disabled={!audio.timings}
-            onChange={(e) => setHighlightFollowEnabled(e.target.checked)}
-          />
-          Highlight text
-        </label>
-      </div>
-
-      {highlightFollowEnabled && words.length > 0 && (
-        <div
-          className={cn(
-            "max-h-40 overflow-y-auto rounded border px-3 py-2 text-sm leading-relaxed",
-            isDarkTheme ? "border-neutral-700 bg-neutral-900 text-neutral-300" : "border-neutral-200 bg-white text-neutral-700",
-          )}
-        >
-          {words.map((word, i) => (
-            <span
-              key={i}
-              ref={(el) => {
-                wordRefs.current[i] = el;
-              }}
-              className={cn(
-                "cursor-pointer rounded px-0.5",
-                i === activeWordIndex ? "bg-amber-200 text-neutral-900" : "hover:bg-neutral-100",
-              )}
-              onClick={() => seekTo(word.startSeconds)}
-            >
-              {word.text}{" "}
-            </span>
-          ))}
-        </div>
       )}
-    </div>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title="Listen"
+          >
+            <Volume2Icon className={cn("size-4", isPlaying ? "text-emerald-600" : "text-neutral-400")} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="flex w-96 flex-col gap-3">
+          {providerVoicePicker}
+
+          {!audio ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => requestTts.mutate({ articleId, provider, voice, source: effectiveSource })}
+                disabled={requestTts.isPending}
+              >
+                <Volume2Icon className="size-4" />
+                {requestTts.isPending ? "Generating audio…" : "Listen"}
+              </Button>
+              <span className="text-xs text-neutral-400">
+                {sourceCharCount.toLocaleString()} characters
+                {effectiveProvider === "elevenlabs" && " (≈ ElevenLabs credits)"}
+              </span>
+            </div>
+          ) : (
+            <>
+              <span className="text-xs font-medium text-neutral-500">
+                {audio.provider} {audio.voice} · {audio.charCount.toLocaleString()} characters
+              </span>
+
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="size-8" title={`Back ${SKIP_SECONDS}s`} onClick={() => skip(-SKIP_SECONDS)}>
+                  <RotateCcwIcon className="size-4 text-neutral-500" />
+                </Button>
+                <Button variant="ghost" size="icon" className="size-9" title={isPlaying ? "Pause" : "Play"} onClick={togglePlay}>
+                  {isPlaying ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
+                </Button>
+                <Button variant="ghost" size="icon" className="size-8" title={`Forward ${SKIP_SECONDS}s`} onClick={() => skip(SKIP_SECONDS)}>
+                  <RotateCwIcon className="size-4 text-neutral-500" />
+                </Button>
+
+                <span className="w-9 shrink-0 text-right text-xs text-neutral-400">{formatTime(currentTime)}</span>
+                <input
+                  type="range"
+                  className="h-1 flex-1 cursor-pointer accent-neutral-700"
+                  min={0}
+                  max={duration ?? audio.durationSeconds ?? 0}
+                  step={0.1}
+                  value={currentTime}
+                  onChange={(e) => seekTo(Number(e.target.value))}
+                />
+                <span className="w-9 shrink-0 text-xs text-neutral-400">
+                  {formatTime(duration ?? audio.durationSeconds ?? 0)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <select
+                  className={selectClass()}
+                  value={speed}
+                  onChange={(e) => pickSpeed(Number(e.target.value))}
+                  title="Playback speed"
+                >
+                  {[0.75, 1, 1.25, 1.5, 1.75, 2].map((s) => (
+                    <option key={s} value={s}>
+                      {s}×
+                    </option>
+                  ))}
+                </select>
+
+                <label
+                  className={cn("flex shrink-0 items-center gap-1.5 text-xs text-neutral-500", !audio.timings && "opacity-50")}
+                  title={audio.timings ? undefined : "This audio has no word timings (Piper) — highlight-follow needs ElevenLabs"}
+                >
+                  <input
+                    type="checkbox"
+                    className="size-3.5 cursor-pointer"
+                    checked={highlightFollowEnabled}
+                    disabled={!audio.timings}
+                    onChange={(e) => pickHighlightFollow(e.target.checked)}
+                  />
+                  Highlight text
+                </label>
+              </div>
+
+              {highlightFollowEnabled && words.length > 0 && (
+                <div className="max-h-40 overflow-y-auto rounded border border-neutral-200 bg-white px-3 py-2 text-sm leading-relaxed text-neutral-700">
+                  {words.map((word, i) => (
+                    <span
+                      key={i}
+                      ref={(el) => {
+                        wordRefs.current[i] = el;
+                      }}
+                      className={cn(
+                        "cursor-pointer rounded px-0.5",
+                        i === activeWordIndex ? "bg-amber-200 text-neutral-900" : "hover:bg-neutral-100",
+                      )}
+                      onClick={() => seekTo(word.startSeconds)}
+                    >
+                      {word.text}{" "}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </PopoverContent>
+      </Popover>
+    </>
   );
 }
