@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftIcon,
   ChevronDownIcon,
@@ -7,11 +7,14 @@ import {
   SparklesIcon,
   StarIcon,
   Trash2Icon,
+  Volume2Icon,
   ZapIcon,
 } from "lucide-react";
+import type { HighlightWord } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import AudioPlayer from "@/components/AudioPlayer";
+import AudioBar from "@/components/AudioBar";
+import ListenSourceDialog from "@/components/ListenSourceDialog";
 import RsvpReader from "@/components/RsvpReader";
 import {
   useArticle,
@@ -22,6 +25,7 @@ import {
   useSummary,
 } from "@/lib/hooks";
 import { useReaderTheme } from "@/lib/reader-theme";
+import { useTtsPlayback } from "@/lib/use-tts-playback";
 import { cn } from "@/lib/utils";
 
 interface ArticleReaderProps {
@@ -32,6 +36,58 @@ interface ArticleReaderProps {
 
 // Debounced so a quick skim-and-move-on doesn't mark every article read.
 const AUTO_READ_DELAY_MS = 1200;
+
+// Renders the exact transcript ElevenLabs actually narrated (built from its
+// own per-character alignment — see tts-highlight.ts on why that, and not
+// article.contentText, is the source of truth) as clickable, auto-scrolling
+// word spans, replacing either the summary or full-article prose while
+// read-along highlighting is active — so the currently-spoken word is
+// visible directly in the open article rather than in a separate box.
+function ReadAlongBlock({
+  words,
+  activeWordIndex,
+  onWordClick,
+  isDarkTheme,
+}: {
+  words: HighlightWord[];
+  activeWordIndex: number;
+  onWordClick: (seconds: number) => void;
+  isDarkTheme: boolean;
+}) {
+  const wordRefs = useRef<Array<HTMLSpanElement | null>>([]);
+
+  useEffect(() => {
+    if (activeWordIndex < 0) return;
+    wordRefs.current[activeWordIndex]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeWordIndex]);
+
+  return (
+    <div className={cn("prose mt-6 max-w-none leading-relaxed", isDarkTheme ? "prose-invert" : "prose-neutral")}>
+      {words.map((word, i) => (
+        <span key={i}>
+          <span
+            ref={(el) => {
+              wordRefs.current[i] = el;
+            }}
+            className={cn(
+              "cursor-pointer rounded px-0.5",
+              i === activeWordIndex ? "bg-amber-200 text-neutral-900" : "hover:bg-[var(--surface-hover)]",
+            )}
+            onClick={() => onWordClick(word.startSeconds)}
+          >
+            {word.text}
+          </span>{" "}
+          {word.startsNewParagraph && (
+            <>
+              <br />
+              <br />
+            </>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function SummaryPanel({ articleId }: { articleId: string }) {
   const { data: summary, isLoading } = useSummary(articleId);
@@ -103,6 +159,9 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
   const [isRsvpOpen, setIsRsvpOpen] = useState(false);
 
   const { style: theme, isDark: isDarkTheme, fontSize, fontStack } = useReaderTheme();
+  // Called unconditionally (before the loading/error early-returns below)
+  // since it's a hook — it tolerates a null/not-yet-loaded article itself.
+  const playback = useTtsPlayback(articleId, article?.contentText ?? "", article?.playbackPositionSeconds ?? null);
 
   useEffect(() => {
     if (!article || article.readAt) return;
@@ -118,6 +177,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
   if (!articleId) {
     return (
       <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
+        {playback.audioElement}
         <div className="p-6 text-sm" style={{ color: theme.muted }}>
           Select an article to read it here.
         </div>
@@ -128,6 +188,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
   if (isLoading) {
     return (
       <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
+        {playback.audioElement}
         <div className="p-6 text-sm" style={{ color: theme.muted }}>
           Loading…
         </div>
@@ -141,6 +202,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
   if (isError || !article) {
     return (
       <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
+        {playback.audioElement}
         <div className="flex flex-col gap-3 p-6 text-sm" style={{ color: theme.muted }}>
           <p>Couldn't load this article.</p>
           <button
@@ -160,8 +222,15 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
   const isCleared = Boolean(article.clearedAt);
 
   return (
-    <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
-      <article className="mx-auto max-w-[66ch] px-6 py-8" style={{ fontSize, fontFamily: fontStack }}>
+    <main
+      className={cn("relative flex-1 overflow-y-auto", className)}
+      style={{ backgroundColor: theme.background }}
+    >
+      {playback.audioElement}
+      <article
+        className={cn("mx-auto max-w-[66ch] px-6 py-8", playback.activeSource && "pb-20")}
+        style={{ fontSize, fontFamily: fontStack }}
+      >
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-1">
             {onBack ? (
@@ -187,11 +256,19 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
               >
                 <ZapIcon className="size-4" style={{ color: theme.muted }} />
               </Button>
-              <AudioPlayer
-                articleId={article.id}
-                articleText={article.contentText}
-                initialPositionSeconds={article.playbackPositionSeconds}
-              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                title="Listen"
+                disabled={playback.isGenerating}
+                onClick={playback.openModal}
+              >
+                <Volume2Icon
+                  className={cn("size-4", playback.isPlaying && "text-emerald-600")}
+                  style={playback.isPlaying ? undefined : { color: theme.muted }}
+                />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -275,15 +352,36 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
           </p>
         )}
 
-        <SummaryPanel articleId={article.id} />
+        {playback.activeSource === "summary" && playback.highlightActive ? (
+          <ReadAlongBlock
+            words={playback.words}
+            activeWordIndex={playback.activeWordIndex}
+            onWordClick={playback.seekTo}
+            isDarkTheme={isDarkTheme}
+          />
+        ) : (
+          <SummaryPanel articleId={article.id} />
+        )}
 
-        <div
-          className={cn("prose mt-6 max-w-none leading-relaxed", isDarkTheme ? "prose-invert" : "prose-neutral")}
-          // content_html is sanitized server-side on ingest (PLAN §10.1)
-          // before it is ever stored.
-          dangerouslySetInnerHTML={{ __html: article.contentHtml }}
-        />
+        {playback.activeSource === "full" && playback.highlightActive ? (
+          <ReadAlongBlock
+            words={playback.words}
+            activeWordIndex={playback.activeWordIndex}
+            onWordClick={playback.seekTo}
+            isDarkTheme={isDarkTheme}
+          />
+        ) : (
+          <div
+            className={cn("prose mt-6 max-w-none leading-relaxed", isDarkTheme ? "prose-invert" : "prose-neutral")}
+            // content_html is sanitized server-side on ingest (PLAN §10.1)
+            // before it is ever stored.
+            dangerouslySetInnerHTML={{ __html: article.contentHtml }}
+          />
+        )}
       </article>
+
+      <AudioBar playback={playback} />
+      <ListenSourceDialog playback={playback} />
 
       {isRsvpOpen && (
         <RsvpReader articleId={article.id} fullText={article.contentText} onExit={() => setIsRsvpOpen(false)} />

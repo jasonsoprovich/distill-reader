@@ -31,9 +31,10 @@ export default function Reader() {
 
   // Desktop-only: mobile is a single visible pane at a time, where
   // per-pane widths don't apply. Two separate component trees (rather than
-  // one shared tree toggled by CSS) so ArticleReader/AudioPlayer — which
-  // deliberately keeps its <audio> element mounted across popover
-  // open/close for uninterrupted playback — is never mounted twice at once.
+  // one shared tree toggled by CSS) so ArticleReader — whose useTtsPlayback
+  // hook deliberately keeps its <audio> element mounted for uninterrupted
+  // playback while the bottom bar/modal open and close — is never mounted
+  // twice at once.
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "distill-reader-panel-layout",
     storage: typeof window === "undefined" ? undefined : window.localStorage,

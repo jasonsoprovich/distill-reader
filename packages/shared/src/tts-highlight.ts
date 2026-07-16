@@ -18,6 +18,13 @@ export interface HighlightWord {
   text: string;
   startSeconds: number;
   endSeconds: number;
+  // True if a newline preceded this word — chunkText (packages/providers)
+  // preserves "\n\n" between paragraphs within a single synthesis call, so
+  // this survives into the alignment for same-chunk text. Not reliable
+  // across a chunk boundary (each chunk is trimmed before synthesis, per
+  // this module's own note below), so long narrations may lose a break at
+  // exactly that seam — a reasonable, pre-existing limit, not a regression.
+  startsNewParagraph: boolean;
 }
 
 const WHITESPACE_RE = /\s/;
@@ -29,7 +36,11 @@ export function buildHighlightWords(timings: TtsTimings): HighlightWord[] {
 
   let i = 0;
   while (i < characters.length) {
-    while (i < characters.length && WHITESPACE_RE.test(characters[i])) i++;
+    let sawNewline = false;
+    while (i < characters.length && WHITESPACE_RE.test(characters[i])) {
+      if (characters[i] === "\n") sawNewline = true;
+      i++;
+    }
     if (i >= characters.length) break;
 
     const start = i;
@@ -40,6 +51,7 @@ export function buildHighlightWords(timings: TtsTimings): HighlightWord[] {
       text: characters.slice(start, end).join(""),
       startSeconds: characterStartTimesSeconds[start],
       endSeconds: characterEndTimesSeconds[end - 1],
+      startsNewParagraph: sawNewline,
     });
   }
 

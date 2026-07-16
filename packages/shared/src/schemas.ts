@@ -105,7 +105,6 @@ export type RsvpPrefsInput = z.infer<typeof rsvpPrefsSchema>;
 // PLAN §7.3 — persisted as a merge-patch into user_settings.tts_prefs
 // (jsonb), mirroring rsvpPrefsSchema's all-optional shape.
 export const ttsPrefsSchema = z.object({
-  provider: z.enum(TTS_PROVIDERS).optional(),
   voice: z.string().min(1).max(200).optional(),
   model: z.string().min(1).max(200).optional(),
   speed: z.number().min(0.5).max(2).optional(),

@@ -166,14 +166,19 @@ export interface RsvpPrefs {
 }
 
 // PLAN §7.3 — persisted TTS audio-player preferences. All fields optional,
-// same "partial patch + empty-row default" shape as RsvpPrefs.
+// same "partial patch + empty-row default" shape as RsvpPrefs. No `provider`
+// field: voice/model selection now lives entirely in Settings, keyed off
+// SettingsDTO.defaultTtsProvider as the single source of truth for which
+// provider is active (previously this had its own per-listen override,
+// back when the Listen popover had its own provider picker).
 export interface TtsPrefs {
-  provider?: TtsProviderKind;
   voice?: string;
   // Only meaningful for providers with a model concept (ElevenLabs).
   model?: string;
   speed?: number;
   highlightFollowEnabled?: boolean;
+  // Last source chosen from the read-aloud confirmation modal — used only
+  // to pre-select that modal's default next time, not to skip asking.
   source?: TtsSource;
 }
 

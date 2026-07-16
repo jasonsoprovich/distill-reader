@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeftIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { CREDENTIAL_PROVIDERS, READER_THEME_NAMES, SUMMARY_PROVIDERS, TTS_PROVIDERS } from "@distill/shared";
+import {
+  CREDENTIAL_PROVIDERS,
+  ELEVENLABS_MODELS,
+  READER_THEME_NAMES,
+  SUMMARY_PROVIDERS,
+  TTS_PROVIDERS,
+} from "@distill/shared";
 import type {
   CredentialProviderKind,
   ReaderFontName,
@@ -14,7 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { ApiError } from "@/lib/api";
-import { useCreateCredential, useCredentials, useDeleteCredential, useSettings, useUpdateSettings } from "@/lib/hooks";
+import {
+  useCreateCredential,
+  useCredentials,
+  useDeleteCredential,
+  useSettings,
+  useTtsVoices,
+  useUpdateSettings,
+} from "@/lib/hooks";
 import {
   DEFAULT_READER_FONT_FAMILY,
   DEFAULT_READER_FONT_SIZE,
@@ -235,6 +248,152 @@ function DefaultTtsProviderPicker() {
   );
 }
 
+// ElevenLabs' own grouping — surfaced so a user's cloned/generated voices
+// aren't lost in a long premade catalog (PLAN §7.4).
+const VOICE_CATEGORY_GROUP_LABELS: Record<string, string> = {
+  cloned: "Your voices",
+  generated: "Your voices",
+  professional: "Your voices",
+  premade: "ElevenLabs voices",
+};
+
+const PERSIST_TTS_PREFS_DELAY_MS = 600;
+
+// Voice/model/speed/highlight-follow — everything about *how* narration
+// sounds lives here now, keyed off the Default TTS provider picked just
+// above. The per-listen confirmation modal (ArticleReader) only asks
+// "summary or full article", not provider/voice, so this is the single
+// place those get configured.
+function TtsVoicePicker() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const loadedRef = useRef(false);
+  // Same race this guards against as ReaderThemePicker's dirtyRef — see
+  // that component for the full writeup.
+  const dirtyRef = useRef(false);
+
+  const [voice, setVoice] = useState<string | undefined>(undefined);
+  const [model, setModel] = useState<string | undefined>(undefined);
+  const [speed, setSpeed] = useState(1);
+  const [highlightFollowEnabled, setHighlightFollowEnabled] = useState(false);
+
+  const provider = settings?.defaultTtsProvider ?? null;
+  const { data: voices } = useTtsVoices(provider);
+
+  useEffect(() => {
+    if (loadedRef.current || !settings) return;
+    loadedRef.current = true;
+    const prefs = settings.ttsPrefs;
+    if (prefs.voice) setVoice(prefs.voice);
+    if (prefs.model) setModel(prefs.model);
+    if (prefs.speed != null) setSpeed(prefs.speed);
+    if (prefs.highlightFollowEnabled != null) setHighlightFollowEnabled(prefs.highlightFollowEnabled);
+  }, [settings]);
+
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    const timer = setTimeout(() => {
+      updateSettings.mutate({ ttsPrefs: { voice, model, speed, highlightFollowEnabled } });
+    }, PERSIST_TTS_PREFS_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice, model, speed, highlightFollowEnabled]);
+
+  function pickVoice(next: string | undefined) {
+    dirtyRef.current = true;
+    setVoice(next);
+  }
+
+  function pickModel(next: string | undefined) {
+    dirtyRef.current = true;
+    setModel(next);
+  }
+
+  function pickSpeed(next: number) {
+    dirtyRef.current = true;
+    setSpeed(next);
+  }
+
+  function pickHighlightFollow(next: boolean) {
+    dirtyRef.current = true;
+    setHighlightFollowEnabled(next);
+  }
+
+  if (!settings) return null;
+
+  if (!provider) {
+    return <p className="text-xs text-[var(--surface-muted)]">Pick a default TTS provider above to configure it.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {voices && voices.length > 0 && (
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+          Voice
+          <select className={selectClass()} value={voice ?? ""} onChange={(e) => pickVoice(e.target.value || undefined)}>
+            <option value="">Default voice</option>
+            {voices.some((v) => v.category) ? (
+              Object.entries(
+                voices.reduce<Record<string, typeof voices>>((groups, v) => {
+                  const label = VOICE_CATEGORY_GROUP_LABELS[v.category ?? ""] ?? "Other voices";
+                  (groups[label] ??= []).push(v);
+                  return groups;
+                }, {}),
+              ).map(([label, group]) => (
+                <optgroup key={label} label={label}>
+                  {group.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))
+            ) : (
+              voices.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+      )}
+
+      {provider === "elevenlabs" && (
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+          Model
+          <select className={selectClass()} value={model ?? ""} onChange={(e) => pickModel(e.target.value || undefined)}>
+            <option value="">Default model</option>
+            {ELEVENLABS_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <label className="flex items-center gap-3 text-xs font-medium text-[var(--surface-muted)]">
+        <span className="w-16 shrink-0">Speed</span>
+        <Slider value={[speed]} min={0.5} max={2} step={0.05} onValueChange={([v]) => pickSpeed(v)} />
+        <span className="w-10 shrink-0 text-right">{speed.toFixed(2)}×</span>
+      </label>
+
+      {provider === "elevenlabs" && (
+        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--surface-muted)]">
+          <input
+            type="checkbox"
+            className="size-3.5 cursor-pointer"
+            checked={highlightFollowEnabled}
+            onChange={(e) => pickHighlightFollow(e.target.checked)}
+          />
+          Highlight words while reading along
+        </label>
+      )}
+    </div>
+  );
+}
+
 const PERSIST_THEME_DELAY_MS = 600;
 
 function ReaderThemePicker() {
@@ -387,9 +546,11 @@ export default function Settings() {
         <section className="mt-8 flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-[var(--surface-fg)]">Audio narration (TTS)</h2>
           <p className="text-xs text-[var(--surface-muted)]">
-            Voice and playback speed are set from the Listen panel on each article.
+            Clicking Listen on an article only asks whether to read the summary or the full article — voice, model,
+            and speed are configured here.
           </p>
           <DefaultTtsProviderPicker />
+          <TtsVoicePicker />
         </section>
 
         <section className="mt-8 flex flex-col gap-3">
