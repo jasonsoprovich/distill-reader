@@ -4,7 +4,7 @@
 # speaks the binary Wyoming protocol rather than plain HTTP and can't be
 # addressed by a base_url the way this project's provider clients expect
 # (PLAN §7.1: "Piper... addressed via base_url exactly like Ollama").
-FROM python:3.11-slim@sha256:baf89808ec37adeaab83cec287adb4a2afa4a11c1d51e961c7ec737877e61af6
+FROM python:3.14-slim@sha256:d3400aa122fa42cf0af0dbe8ec3091b047eac5c8f7e3539f7135e86d855dc015
 
 # Pinned deliberately, not left floating: the *released* HTTP server's
 # routes differ from piper1-gpl's docs/unreleased main branch (verified by
