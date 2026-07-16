@@ -16,7 +16,7 @@ interface FeedSidebarProps {
 const SMART_VIEWS: { view: ArticleView; label: string }[] = [
   { view: "unread", label: "Unread" },
   { view: "starred", label: "Starred" },
-  { view: "cleared", label: "Cleared" },
+  { view: "cleared", label: "Removed" },
 ];
 
 function navButtonClass(active: boolean) {

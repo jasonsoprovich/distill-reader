@@ -28,7 +28,7 @@ async function tagsByFeedId(userId: string): Promise<Map<string, TagDTO[]>> {
 
 // An article counts as unread until it has an article_state row with
 // read_at set — no row at all (the default for every newly ingested
-// article) counts as unread too. Cleared articles ("not interested") are
+// article) counts as unread too. Removed ("cleared") articles are
 // excluded so they don't inflate the badge after being dismissed.
 async function unreadCountsByFeedId(userId: string): Promise<Map<string, number>> {
   const rows = await db

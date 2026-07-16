@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckIcon, SparklesIcon, StarIcon, XIcon, ZapIcon } from "lucide-react";
+import { CheckIcon, SparklesIcon, StarIcon, Trash2Icon, ZapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AudioPlayer from "@/components/AudioPlayer";
 import RsvpReader from "@/components/RsvpReader";
@@ -124,10 +124,10 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
               variant="ghost"
               size="icon"
               className="size-8"
-              title={isCleared ? "Restore" : "Not interested"}
+              title={isCleared ? "Restore" : "Remove from feed"}
               onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
             >
-              <XIcon className={cn("size-4", isCleared ? "text-destructive" : "text-neutral-400")} />
+              <Trash2Icon className={cn("size-4", isCleared ? "text-destructive" : "text-neutral-400")} />
             </Button>
           </div>
         </div>

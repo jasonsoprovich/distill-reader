@@ -1,4 +1,4 @@
-import { CheckCheckIcon, StarIcon, XIcon } from "lucide-react";
+import { CheckCheckIcon, StarIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useArticles, useClearArticle, useReadAll, useStarArticle } from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
@@ -23,7 +23,7 @@ export default function ArticleList({ selection, selectedArticleId, onSelectArti
   const readAll = useReadAll();
   const articles = data?.pages.flatMap((page) => page.items) ?? [];
 
-  // Marking-all-read is meaningless in the Cleared view (those articles are
+  // Marking-all-read is meaningless in the Removed view (those articles are
   // already out of the reading flow).
   const canMarkAllRead = !(selection.kind === "view" && selection.view === "cleared");
 
@@ -113,10 +113,10 @@ export default function ArticleList({ selection, selectedArticleId, onSelectArti
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  title={isCleared ? "Restore" : "Not interested"}
+                  title={isCleared ? "Restore" : "Remove from feed"}
                   onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
                 >
-                  <XIcon className="size-3.5 text-neutral-400" />
+                  <Trash2Icon className={cn("size-3.5", isCleared ? "text-destructive" : "text-neutral-400")} />
                 </Button>
               </div>
             </div>
