@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PlusIcon } from "lucide-react";
 import type { DiscoveredFeed } from "@distill/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,9 @@ export default function AddFeedDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button size="sm">Add feed</Button>
+        <Button variant="ghost" size="icon" className="size-5 text-neutral-500" title="Add feed">
+          <PlusIcon className="size-3.5" />
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
