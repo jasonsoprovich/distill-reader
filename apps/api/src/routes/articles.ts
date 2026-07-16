@@ -626,8 +626,34 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
     const storageKey = `${createHash("sha256")
       .update(`${id}:${userId}:${result.provider}:${result.voice}:${result.format}:${source}:${result.settingsVersion}`)
       .digest("hex")}.${result.format}`;
-    await mkdir(audioStoragePath(), { recursive: true });
-    await writeFile(path.join(audioStoragePath(), storageKey), result.audio);
+
+    // Synthesis (and, for paid providers, the credit spend) has already
+    // happened above — a storage failure past this point must not discard
+    // audio the user already paid for. Caching and the network call are
+    // kept in their own try/catch so a bad AUDIO_STORAGE_PATH degrades to
+    // inline, uncached playback instead of a bare error with nothing to play.
+    try {
+      await mkdir(audioStoragePath(), { recursive: true });
+      await writeFile(path.join(audioStoragePath(), storageKey), result.audio);
+    } catch (storageErr) {
+      console.error(
+        `TTS audio storage write failed (AUDIO_STORAGE_PATH=${audioStoragePath()}); serving inline instead of caching:`,
+        storageErr,
+      );
+      const contentType = result.format === "wav" ? "audio/wav" : "audio/mpeg";
+      const inline: TtsAudioDTO = {
+        provider: result.provider,
+        voice: result.voice,
+        format: result.format,
+        source,
+        durationSeconds: result.durationSeconds,
+        charCount: result.charCount,
+        timings: result.timings,
+        createdAt: new Date().toISOString(),
+        url: `data:${contentType};base64,${result.audio.toString("base64")}`,
+      };
+      return c.json(inline);
+    }
 
     let [row] = await db
       .insert(ttsAudio)

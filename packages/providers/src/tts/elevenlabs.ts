@@ -25,11 +25,21 @@ interface ElevenLabsSpeechResponse {
 interface ElevenLabsVoice {
   voice_id: string;
   name: string;
+  category?: string;
 }
 
 interface ElevenLabsVoicesResponse {
   voices?: ElevenLabsVoice[];
+  has_more?: boolean;
+  next_page_token?: string | null;
 }
+
+// /v2/voices defaults to a page of 10 with no way to request more per-page
+// via that route; /voices/search (same auth, richer query params) accepts
+// page_size up to 100 and returns has_more/next_page_token for the rest.
+// Capped at 10 pages (≤1000 voices) as a sane upper bound, not a real limit.
+const VOICES_PAGE_SIZE = 100;
+const MAX_VOICE_PAGES = 10;
 
 export function createElevenLabsClient(apiKey: string, baseUrl?: string | null): TtsProviderClient {
   const root = (baseUrl || "https://api.elevenlabs.io").replace(/\/$/, "");
@@ -89,33 +99,55 @@ export function createElevenLabsClient(apiKey: string, baseUrl?: string | null):
       };
     },
     async listVoices(): Promise<TtsVoiceInfo[]> {
-      let response: Response;
-      try {
-        response = await safeFetch(`${root}/v2/voices`, {
-          headers: { "xi-api-key": apiKey },
-          timeoutMs: TTS_REQUEST_TIMEOUT_MS,
-        });
-      } catch (err) {
-        if (isTimeoutError(err)) throw new TtsProviderError("elevenlabs", "timeout", "ElevenLabs request timed out");
-        throw new TtsProviderError(
-          "elevenlabs",
-          "unknown",
-          err instanceof Error ? err.message : "ElevenLabs request failed",
-        );
+      const voices: ElevenLabsVoice[] = [];
+      let nextPageToken: string | undefined;
+
+      for (let page = 0; page < MAX_VOICE_PAGES; page++) {
+        const params = new URLSearchParams({ page_size: String(VOICES_PAGE_SIZE), sort: "name", sort_direction: "asc" });
+        if (nextPageToken) params.set("next_page_token", nextPageToken);
+
+        let response: Response;
+        try {
+          response = await safeFetch(`${root}/v2/voices?${params}`, {
+            headers: { "xi-api-key": apiKey },
+            timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+          });
+        } catch (err) {
+          if (isTimeoutError(err)) throw new TtsProviderError("elevenlabs", "timeout", "ElevenLabs request timed out");
+          throw new TtsProviderError(
+            "elevenlabs",
+            "unknown",
+            err instanceof Error ? err.message : "ElevenLabs request failed",
+          );
+        }
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new TtsProviderError(
+            "elevenlabs",
+            classifyStatus(response.status),
+            `ElevenLabs request failed (${response.status}): ${body.slice(0, 300)}`,
+          );
+        }
+
+        const buf = await readCapped(response);
+        const data = JSON.parse(buf.toString("utf-8")) as ElevenLabsVoicesResponse;
+        voices.push(...(data.voices ?? []));
+        if (!data.has_more || !data.next_page_token) break;
+        nextPageToken = data.next_page_token;
       }
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        throw new TtsProviderError(
-          "elevenlabs",
-          classifyStatus(response.status),
-          `ElevenLabs request failed (${response.status}): ${body.slice(0, 300)}`,
-        );
-      }
+      // Cloned/generated/professional voices (the user's own) surfaced ahead
+      // of ElevenLabs' large premade library, then alphabetically within
+      // each group — otherwise a big premade catalog buries the few voices
+      // most users actually want.
+      const categoryRank: Record<string, number> = { cloned: 0, generated: 0, professional: 0, premade: 1 };
+      voices.sort((a, b) => {
+        const rankDiff = (categoryRank[a.category ?? "premade"] ?? 1) - (categoryRank[b.category ?? "premade"] ?? 1);
+        return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
+      });
 
-      const buf = await readCapped(response);
-      const data = JSON.parse(buf.toString("utf-8")) as ElevenLabsVoicesResponse;
-      return (data.voices ?? []).map((v) => ({ id: v.voice_id, name: v.name }));
+      return voices.map((v) => ({ id: v.voice_id, name: v.name, category: v.category }));
     },
   };
 }

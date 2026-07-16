@@ -19,6 +19,9 @@ export interface TtsSynthesizeResult {
 export interface TtsVoiceInfo {
   id: string;
   name: string;
+  // ElevenLabs' own grouping ("premade" | "cloned" | "generated" |
+  // "professional") — absent for providers with no such concept (Piper).
+  category?: string;
 }
 
 export interface TtsProviderClient {
