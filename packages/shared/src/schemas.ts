@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { CREDENTIAL_PROVIDERS, FEED_KINDS, READER_THEME_NAMES, SUMMARY_PROVIDERS, TTS_PROVIDERS, TTS_SOURCES } from "./types.js";
+import {
+  CREDENTIAL_PROVIDERS,
+  FEED_KINDS,
+  READER_FONT_NAMES,
+  READER_THEME_NAMES,
+  SUMMARY_PROVIDERS,
+  TTS_PROVIDERS,
+  TTS_SOURCES,
+} from "./types.js";
 
 export const previewFeedSchema = z.object({
   url: z.url(),
@@ -110,6 +118,7 @@ export type TtsPrefsInput = z.infer<typeof ttsPrefsSchema>;
 export const readerThemeSchema = z.object({
   name: z.enum(READER_THEME_NAMES).optional(),
   fontSize: z.number().min(14).max(24).optional(),
+  fontFamily: z.enum(READER_FONT_NAMES).optional(),
 });
 export type ReaderThemeInput = z.infer<typeof readerThemeSchema>;
 

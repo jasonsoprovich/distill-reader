@@ -2,6 +2,7 @@ import { useState } from "react";
 import ArticleList from "@/components/ArticleList";
 import ArticleReader from "@/components/ArticleReader";
 import FeedSidebar from "@/components/FeedSidebar";
+import { useReaderTheme } from "@/lib/reader-theme";
 import type { Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 
@@ -15,9 +16,13 @@ export default function Reader() {
   const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>("sidebar");
+  const { vars } = useReaderTheme();
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-50 text-neutral-900 md:flex-row">
+    <div
+      className="flex h-screen flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)] md:flex-row"
+      style={vars}
+    >
       <FeedSidebar
         className={cn("md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
         selection={selection}

@@ -166,9 +166,15 @@ export interface TtsPrefs {
 export const READER_THEME_NAMES = ["light", "sepia", "dark", "high-contrast"] as const;
 export type ReaderThemeName = (typeof READER_THEME_NAMES)[number];
 
+// A small set of reader-friendly font families, in the spirit of an
+// e-reader's font picker — system font stacks only, no webfont loading.
+export const READER_FONT_NAMES = ["sans", "serif", "monospace"] as const;
+export type ReaderFontName = (typeof READER_FONT_NAMES)[number];
+
 export interface ReaderTheme {
   name?: ReaderThemeName;
   fontSize?: number;
+  fontFamily?: ReaderFontName;
 }
 
 export interface SettingsDTO {

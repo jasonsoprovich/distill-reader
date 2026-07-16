@@ -33,17 +33,26 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
   const pollFeed = usePollFeed();
 
   return (
-    <aside className={cn("flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white md:w-64", className)}>
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+    <aside
+      className={cn(
+        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)] md:w-64",
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3">
         <span className="text-sm font-semibold">Distill</span>
         <div className="flex items-center gap-3">
-          <Link to="/settings" title="Settings" className="text-neutral-500 hover:text-neutral-900">
+          <Link
+            to="/settings"
+            title="Settings"
+            className="text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+          >
             <SettingsIcon className="size-4" />
           </Link>
           <button
             type="button"
             onClick={() => authClient.signOut()}
-            className="text-xs text-neutral-500 hover:text-neutral-900"
+            className="text-xs text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
           >
             Sign out
           </button>
@@ -67,7 +76,7 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
 
         {tags.length > 0 && (
           <>
-            <div className="mt-4 px-2 pb-1 text-xs font-medium text-neutral-500">Tags</div>
+            <div className="mt-4 px-2 pb-1 text-xs font-medium text-[var(--surface-muted)]">Tags</div>
             {tags.map((tag) => (
               <button
                 key={tag.id}
@@ -82,11 +91,11 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
         )}
 
         <div className="mt-4 flex items-center justify-between px-2 pb-1">
-          <span className="text-xs font-medium text-neutral-500">Feeds</span>
+          <span className="text-xs font-medium text-[var(--surface-muted)]">Feeds</span>
           <AddFeedDialog />
         </div>
 
-        {isLoading && <p className="px-2 py-1.5 text-xs text-neutral-400">Loading feeds…</p>}
+        {isLoading && <p className="px-2 py-1.5 text-xs text-[var(--surface-muted)]">Loading feeds…</p>}
         {isError && (
           <div className="flex flex-col items-start gap-1 px-2 py-1.5 text-xs text-destructive">
             <span>Couldn't load feeds.</span>
@@ -96,7 +105,7 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
           </div>
         )}
         {!isLoading && !isError && feeds.length === 0 && (
-          <p className="px-2 py-1.5 text-xs text-neutral-400">No feeds yet — add one to get started.</p>
+          <p className="px-2 py-1.5 text-xs text-[var(--surface-muted)]">No feeds yet — add one to get started.</p>
         )}
 
         {feeds.map((feed) => (
@@ -106,7 +115,9 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
               onClick={() => onSelect({ kind: "feed", id: feed.id })}
               className={cn(
                 "flex flex-1 items-center gap-2 truncate rounded-md px-2 py-1.5 text-left text-sm",
-                selection.kind === "feed" && selection.id === feed.id ? "bg-neutral-100 font-medium" : "hover:bg-neutral-50",
+                selection.kind === "feed" && selection.id === feed.id
+                  ? "bg-[var(--surface-active)] font-medium"
+                  : "hover:bg-[var(--surface-hover)]",
               )}
               title={feed.lastError ?? undefined}
             >
@@ -117,7 +128,7 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
               {feed.consecutiveFailures > 0 && <span className="text-destructive">!</span>}
             </button>
             {feed.unreadCount > 0 && (
-              <span className="shrink-0 pr-2 text-xs text-neutral-400">{feed.unreadCount}</span>
+              <span className="shrink-0 pr-2 text-xs text-[var(--surface-muted)]">{feed.unreadCount}</span>
             )}
             <Button
               variant="ghost"

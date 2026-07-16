@@ -1,4 +1,6 @@
-import type { ReaderThemeName } from "@distill/shared";
+import type { CSSProperties } from "react";
+import type { ReaderFontName, ReaderThemeName } from "@distill/shared";
+import { useSettings } from "./hooks";
 
 export const READER_THEME_LABELS: Record<ReaderThemeName, string> = {
   light: "Light",
@@ -24,3 +26,57 @@ export const DARK_READER_THEMES = new Set<ReaderThemeName>(["dark", "high-contra
 
 export const DEFAULT_READER_THEME_NAME: ReaderThemeName = "light";
 export const DEFAULT_READER_FONT_SIZE = 17;
+
+export const READER_FONT_LABELS: Record<ReaderFontName, string> = {
+  sans: "Sans-serif",
+  serif: "Serif",
+  monospace: "Monospace",
+};
+
+// System font stacks only — no webfont loading, in the spirit of an
+// e-reader's built-in font picker.
+export const READER_FONT_STACKS: Record<ReaderFontName, string> = {
+  sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif',
+  serif: 'Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif',
+  monospace: '"SF Mono", "Cascadia Code", Consolas, "Courier New", monospace',
+};
+
+export const DEFAULT_READER_FONT_FAMILY: ReaderFontName = "sans";
+
+// Derived surface colors (border/hover/active overlays) for a given theme,
+// exposed as CSS custom properties so every app-shell surface — not just
+// the article panel — can theme consistently off one source of truth
+// instead of each component re-deriving its own light/dark branches.
+export function readerSurfaceVars(name: ReaderThemeName): CSSProperties {
+  const style = READER_THEME_STYLES[name];
+  const dark = DARK_READER_THEMES.has(name);
+  return {
+    "--surface-bg": style.background,
+    "--surface-fg": style.color,
+    "--surface-muted": style.muted,
+    "--surface-border": dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)",
+    "--surface-hover": dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+    "--surface-active": dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.07)",
+  } as CSSProperties;
+}
+
+// Single source of truth for the reader theme derived from settings — used
+// at the app root to set the CSS vars above, and by any component (article
+// panel, audio player) that also needs the raw values for non-Tailwind use
+// (e.g. an <audio> element's chrome, or the Typography plugin's
+// prose/prose-invert switch).
+export function useReaderTheme() {
+  const { data: settings } = useSettings();
+  const name = settings?.readerTheme.name ?? DEFAULT_READER_THEME_NAME;
+  const fontSize = settings?.readerTheme.fontSize ?? DEFAULT_READER_FONT_SIZE;
+  const fontFamily = settings?.readerTheme.fontFamily ?? DEFAULT_READER_FONT_FAMILY;
+  return {
+    name,
+    fontSize,
+    fontFamily,
+    fontStack: READER_FONT_STACKS[fontFamily],
+    style: READER_THEME_STYLES[name],
+    isDark: DARK_READER_THEMES.has(name),
+    vars: readerSurfaceVars(name),
+  };
+}
