@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeftIcon,
-  CheckCheckIcon,
   ChevronDownIcon,
   MailIcon,
   MailOpenIcon,
@@ -193,18 +192,6 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                 articleText={article.contentText}
                 initialPositionSeconds={article.playbackPositionSeconds}
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                title="Mark done — read & remove from feed"
-                onClick={() => {
-                  markRead.mutate({ id: article.id, read: true });
-                  clearArticle.mutate({ id: article.id, cleared: true });
-                }}
-              >
-                <CheckCheckIcon className="size-4 text-neutral-400" />
-              </Button>
               <Button
                 variant="ghost"
                 size="icon"
