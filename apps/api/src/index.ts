@@ -22,7 +22,13 @@ const app = new Hono();
 // path and its header value is the one that survives (secureHeaders sets
 // headers on the way back out, so the outermost matching middleware wins).
 app.use("/img", secureHeaders({ crossOriginResourcePolicy: "cross-origin" }));
-app.use("*", secureHeaders());
+// PLAN §10.5: X-Frame-Options DENY (tighter than the default SAMEORIGIN —
+// this is a JSON API, no legitimate same-origin frame use) and a 2-year HSTS
+// max-age with includeSubDomains, matching the SPA's nginx config. HSTS is a
+// no-op over plain HTTP (browsers only honor it after an HTTPS response), so
+// it's safe to emit unconditionally ahead of the reverse-proxy TLS termination
+// self-hosted deployments are expected to run behind (§11).
+app.use("*", secureHeaders({ xFrameOptions: "DENY", strictTransportSecurity: "max-age=63072000; includeSubDomains" }));
 app.use(
   "/auth/*",
   cors({

@@ -7,12 +7,20 @@ server {
   add_header X-Content-Type-Options "nosniff" always;
   add_header Referrer-Policy "no-referrer" always;
   add_header X-Frame-Options "DENY" always;
+  # HSTS (PLAN §10.5): a no-op over plain HTTP (browsers only honor it after
+  # an HTTPS response), so safe to emit unconditionally ahead of whatever
+  # reverse proxy terminates TLS in front of this container (§11).
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
   # Baseline CSP (PLAN §10.1/§10.5): no inline/eval scripts, and every
   # remote-content origin is the API — article images are only ever loaded
   # through its signed image proxy, never hotlinked to third parties.
-  # style-src allows 'unsafe-inline' for the few inline style attributes the
-  # sanitizer sets on proxied <img> tags; full nonce-based tightening plus
-  # rate limiting is Phase 8.
+  # style-src's 'unsafe-inline' is a deliberate, scoped exception (not
+  # deferred debt): it's a static-file nginx server with no per-request
+  # templating, so nonce-based style-src tightening would need a
+  # request-time rendering layer this app doesn't otherwise need. The actual
+  # XSS vector — script execution — stays fully locked down (script-src
+  # 'self', no 'unsafe-inline'/'unsafe-eval'); inline *style* injection alone
+  # cannot execute script.
   add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' ${VITE_API_URL} data:; media-src 'self'; connect-src 'self' ${VITE_API_URL}; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
 
   location / {
