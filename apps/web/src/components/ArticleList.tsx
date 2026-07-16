@@ -71,10 +71,7 @@ export default function ArticleList({
 
   return (
     <section
-      className={cn(
-        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)] md:w-96",
-        className,
-      )}
+      className={cn("flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]", className)}
     >
       <div className="flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3">
         {selectMode ? (
