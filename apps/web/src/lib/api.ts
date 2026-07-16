@@ -8,6 +8,7 @@ import type {
   DiscoveredFeed,
   FeedDTO,
   FeedPollResultDTO,
+  PatchFeedInput,
   PatchSettingsInput,
   SettingsDTO,
   SummaryDTO,
@@ -61,6 +62,8 @@ export const api = {
     apiFetch<DiscoveredFeed>("/feeds/preview", { method: "POST", body: JSON.stringify({ url }) }),
   createFeed: (input: CreateFeedInput) =>
     apiFetch<FeedDTO>("/feeds", { method: "POST", body: JSON.stringify(input) }),
+  updateFeed: (id: string, patch: PatchFeedInput) =>
+    apiFetch<FeedDTO>(`/feeds/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   pollFeed: (id: string) => apiFetch<FeedPollResultDTO>(`/feeds/${id}/poll`, { method: "POST" }),
   deleteFeed: (id: string) => apiFetch<void>(`/feeds/${id}`, { method: "DELETE" }),
 

@@ -14,6 +14,7 @@ import type {
   ArticleView,
   CreateCredentialInput,
   CreateFeedInput,
+  PatchFeedInput,
   PatchSettingsInput,
   SummaryProviderKind,
   TtsProviderKind,
@@ -47,6 +48,15 @@ export function useCreateFeed() {
   return useMutation({
     mutationFn: (input: CreateFeedInput) => api.createFeed(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: feedsQueryKey }),
+  });
+}
+
+export function useUpdateFeed() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: PatchFeedInput }) => api.updateFeed(id, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: feedsQueryKey }),
+    onError: () => toast("Couldn't update that feed — try again.", "error"),
   });
 }
 

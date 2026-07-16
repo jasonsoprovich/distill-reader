@@ -1,7 +1,16 @@
-import { useMemo, useState } from "react";
-import { ArrowDownAZIcon, ArrowDownWideNarrowIcon, ArrowUpNarrowWideIcon, RefreshCwIcon, SettingsIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDownAZIcon,
+  ArrowDownWideNarrowIcon,
+  ArrowUpNarrowWideIcon,
+  PencilIcon,
+  RefreshCwIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import AddFeedDialog from "@/components/AddFeedDialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,8 +21,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ApiError } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
-import { useDeleteFeed, useFeeds, usePollFeed, useTags } from "@/lib/hooks";
+import { useCreateTag, useDeleteFeed, useFeeds, usePollFeed, useTags, useUpdateFeed } from "@/lib/hooks";
 import type { Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 import type { ArticleView, FeedDTO } from "@distill/shared";
@@ -62,6 +73,108 @@ function sortFeeds(feeds: FeedDTO[], mode: FeedSortMode): FeedDTO[] {
     sorted.sort((a, b) => a.title.localeCompare(b.title));
   }
   return sorted;
+}
+
+function EditFeedDialog({ feed }: { feed: FeedDTO }) {
+  const [open, setOpen] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: tags = [] } = useTags();
+  const createTag = useCreateTag();
+  const updateFeed = useUpdateFeed();
+
+  // Re-seed from the feed's current tags each time the dialog opens, not
+  // just on first mount — otherwise a previous edit session's leftover
+  // selection would resurface next time this same dialog instance opens.
+  useEffect(() => {
+    if (open) setSelectedTagIds(feed.tags.map((t) => t.id));
+  }, [open, feed.tags]);
+
+  function toggleTag(id: string) {
+    setSelectedTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+  }
+
+  async function handleCreateTag() {
+    if (!newTagName.trim()) return;
+    try {
+      const created = await createTag.mutateAsync({ name: newTagName.trim() });
+      setSelectedTagIds((prev) => [...prev, created.id]);
+      setNewTagName("");
+    } catch {
+      // useCreateTag's onError already surfaces a toast.
+    }
+  }
+
+  async function handleSave() {
+    setError(null);
+    try {
+      await updateFeed.mutateAsync({ id: feed.id, patch: { tagIds: selectedTagIds } });
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not update that feed");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-[var(--surface-fg)] group-hover:inline-flex"
+          title="Edit tags"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <PencilIcon className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit "{feed.title}" tags</DialogTitle>
+          <DialogDescription>Add or remove tags for this feed.</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags yet.</span>}
+            {tags.map((t) => (
+              <button key={t.id} type="button" onClick={() => toggleTag(t.id)}>
+                <Badge variant={selectedTagIds.includes(t.id) ? "default" : "outline"}>{t.name}</Badge>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="New tag"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCreateTag}
+              disabled={!newTagName.trim() || createTag.isPending}
+            >
+              Add tag
+            </Button>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updateFeed.isPending}>
+            {updateFeed.isPending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function DeleteFeedButton({ feed, onDeleted }: { feed: FeedDTO; onDeleted: () => void }) {
@@ -255,6 +368,7 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
             >
               <RefreshCwIcon className="size-3.5" />
             </Button>
+            <EditFeedDialog feed={feed} />
             <DeleteFeedButton
               feed={feed}
               onDeleted={() => {
