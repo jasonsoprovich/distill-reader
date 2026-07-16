@@ -8,7 +8,7 @@
   "packageManager": "pnpm@11.13.0",
   "scripts": {
     "build": "pnpm -r run build",
-    "typecheck": "pnpm --filter @distill/db --filter @distill/shared run build && pnpm -r run typecheck",
+    "typecheck": "pnpm --filter @distill/db --filter @distill/shared --filter @distill/extract --filter @distill/providers run build && pnpm -r run typecheck",
     "lint": "pnpm -r run lint",
     "test": "pnpm -r run test",
     "db:generate": "pnpm --filter @distill/db run generate",
