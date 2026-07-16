@@ -1,12 +1,18 @@
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { rateLimiter } from "hono-rate-limiter";
 import type { Context } from "hono";
 import type { AuthVariables } from "./auth.js";
 
-// Real client IP requires a trusted reverse proxy in front (§11) to set
-// X-Forwarded-For; falls back to a single shared "unknown" bucket for
-// direct/unproxied deployments rather than trusting an unset/spoofable value.
+// Prefers X-Forwarded-For from a trusted reverse proxy (§11); falls back to
+// the raw TCP peer address for direct/unproxied deployments. Previously
+// fell back to one shared "unknown" bucket whenever the header was absent —
+// every client sharing a single rate-limit allowance instead of one each
+// (harmless for a lone self-hosted user, but a real problem the moment more
+// than one real client hits an unproxied instance concurrently).
 function clientIp(c: Context): string {
-  return c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwarded) return forwarded;
+  return getConnInfo(c).remote.address ?? "unknown";
 }
 
 const WINDOW_MS = 15 * 60 * 1000;
