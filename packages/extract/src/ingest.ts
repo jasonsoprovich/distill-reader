@@ -21,6 +21,16 @@ export interface IngestResult {
 const BACKOFF_BASE_MINUTES = 5;
 const MAX_BACKOFF_MINUTES = 24 * 60;
 
+// Applies to every poll (first ingest and every subsequent tick alike —
+// there's no separate "backfill" path). Without this, an adapter with no
+// cap of its own (rss.ts ingests every item the feed returns) can dump a
+// feed's entire history into a user's unread list the moment it's added,
+// and re-extract just as many articles on every later poll if the source
+// feed itself always lists that many items. The Hacker News adapter has
+// its own tighter MAX_STORIES cap for a different reason (bounding
+// per-tick fetch/SSRF-check volume) and stays under this ceiling anyway.
+const MAX_ITEMS_PER_POLL = 50;
+
 function backoffMinutes(consecutiveFailures: number): number {
   return Math.min(BACKOFF_BASE_MINUTES * 2 ** consecutiveFailures, MAX_BACKOFF_MINUTES);
 }
@@ -49,11 +59,12 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
   const adapter = getAdapter(feedRow.kind);
 
   try {
-    const items = await adapter.fetchItems({
+    const fetchedItems = await adapter.fetchItems({
       feedUrl: feedRow.feedUrl,
       sourceUrl: feedRow.sourceUrl,
       title: feedRow.title,
     });
+    const items = fetchedItems.slice(0, MAX_ITEMS_PER_POLL);
 
     let inserted = 0;
     const insertedArticleIds: string[] = [];
