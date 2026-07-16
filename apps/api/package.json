@@ -16,7 +16,7 @@
     "@distill/extract": "workspace:*",
     "@distill/providers": "workspace:*",
     "@distill/shared": "workspace:*",
-    "@hono/node-server": "^1.19.6",
+    "@hono/node-server": "^2.0.10",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.10.4",
