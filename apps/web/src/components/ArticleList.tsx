@@ -184,15 +184,10 @@ export default function ArticleList({
                 selectedArticleId === article.id ? "bg-[var(--surface-active)]" : "hover:bg-[var(--surface-hover)]",
               )}
             >
-              <label
-                className={cn(
-                  "flex shrink-0 cursor-pointer items-start py-3 pl-3",
-                  selectMode || isChecked ? "flex" : "hidden group-hover:flex",
-                )}
-              >
+              <label className="flex shrink-0 cursor-pointer items-start py-3 pl-3">
                 <input
                   type="checkbox"
-                  className="mt-1 size-3.5 cursor-pointer"
+                  className="mt-1 size-3.5 cursor-pointer accent-[var(--surface-fg)]"
                   checked={isChecked}
                   onChange={() => toggleSelected(article.id)}
                   onClick={(e) => e.stopPropagation()}
