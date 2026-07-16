@@ -34,6 +34,16 @@ Full stack (Postgres + API + worker + web) via Docker Compose:
 docker compose up --build
 ```
 
+### Optional: self-hosted summary/TTS providers (Ollama, Piper)
+
+Ollama (AI summaries) and Piper (TTS narration) are self-hosted, so they're addressed by URL instead of an API key. Piper doesn't start with the default `docker compose up` — it's behind a Compose profile:
+
+```sh
+docker compose --profile piper up -d piper
+```
+
+Then, in the app's Settings → API credentials, add a credential for the provider with its base URL — `http://piper:5000` for the bundled Piper sidecar, or your own `piper.http_server` address if you're running it elsewhere (same idea for Ollama, typically `http://ollama:11434`). See `.env.example`'s `PIPER_BASE_URL`/`OLLAMA_BASE_URL`/`PIPER_VOICE` for the matching operator-side config.
+
 ## Status
 
 Phase 8 (Hardening & polish) complete — see `docs/PLAN.md` §13 for the phased build order. Highlight-follow (karaoke sync, Phase 7) is deferred per §14's own lean; basic playback, caching, and resume are done.
