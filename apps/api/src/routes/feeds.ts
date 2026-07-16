@@ -62,6 +62,7 @@ function toDTO(row: typeof feed.$inferSelect, tags: TagDTO[], unreadCount: numbe
     active: row.active,
     tags,
     unreadCount,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 

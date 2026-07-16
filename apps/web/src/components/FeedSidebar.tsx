@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { RefreshCwIcon, SettingsIcon, Trash2Icon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowDownAZIcon, ArrowDownWideNarrowIcon, ArrowUpNarrowWideIcon, RefreshCwIcon, SettingsIcon, Trash2Icon } from "lucide-react";
 import { Link } from "react-router-dom";
 import AddFeedDialog from "@/components/AddFeedDialog";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,40 @@ const SMART_VIEWS: { view: ArticleView; label: string }[] = [
   { view: "starred", label: "Starred" },
   { view: "cleared", label: "Removed" },
 ];
+
+type FeedSortMode = "title" | "date-desc" | "date-asc";
+
+const FEED_SORT_STORAGE_KEY = "distill:feedSortMode";
+
+const FEED_SORT_CYCLE: Record<FeedSortMode, FeedSortMode> = {
+  title: "date-desc",
+  "date-desc": "date-asc",
+  "date-asc": "title",
+};
+
+const FEED_SORT_LABELS: Record<FeedSortMode, string> = {
+  title: "Sorted A–Z — click for newest first",
+  "date-desc": "Sorted newest first — click for oldest first",
+  "date-asc": "Sorted oldest first — click to sort A–Z",
+};
+
+function loadFeedSortMode(): FeedSortMode {
+  if (typeof window === "undefined") return "title";
+  const stored = window.localStorage.getItem(FEED_SORT_STORAGE_KEY);
+  return stored === "date-desc" || stored === "date-asc" || stored === "title" ? stored : "title";
+}
+
+function sortFeeds(feeds: FeedDTO[], mode: FeedSortMode): FeedDTO[] {
+  const sorted = [...feeds];
+  if (mode === "date-desc") {
+    sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } else if (mode === "date-asc") {
+    sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  } else {
+    sorted.sort((a, b) => a.title.localeCompare(b.title));
+  }
+  return sorted;
+}
 
 function DeleteFeedButton({ feed, onDeleted }: { feed: FeedDTO; onDeleted: () => void }) {
   const [open, setOpen] = useState(false);
@@ -90,6 +124,17 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
   const { data: feeds = [], isLoading, isError, refetch: refetchFeeds } = useFeeds();
   const { data: tags = [] } = useTags();
   const pollFeed = usePollFeed();
+  const [sortMode, setSortMode] = useState<FeedSortMode>(loadFeedSortMode);
+  const sortedFeeds = useMemo(() => sortFeeds(feeds, sortMode), [feeds, sortMode]);
+
+  function cycleSortMode() {
+    const next = FEED_SORT_CYCLE[sortMode];
+    setSortMode(next);
+    window.localStorage.setItem(FEED_SORT_STORAGE_KEY, next);
+  }
+
+  const SortIcon =
+    sortMode === "title" ? ArrowDownAZIcon : sortMode === "date-desc" ? ArrowDownWideNarrowIcon : ArrowUpNarrowWideIcon;
 
   return (
     <aside
@@ -151,7 +196,18 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
 
         <div className="mt-4 flex items-center justify-between px-2 pb-1">
           <span className="text-xs font-medium text-[var(--surface-muted)]">Feeds</span>
-          <AddFeedDialog />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+              title={FEED_SORT_LABELS[sortMode]}
+              onClick={cycleSortMode}
+            >
+              <SortIcon className="size-3.5" />
+            </Button>
+            <AddFeedDialog />
+          </div>
         </div>
 
         {isLoading && <p className="px-2 py-1.5 text-xs text-[var(--surface-muted)]">Loading feeds…</p>}
@@ -167,7 +223,7 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
           <p className="px-2 py-1.5 text-xs text-[var(--surface-muted)]">No feeds yet — add one to get started.</p>
         )}
 
-        {feeds.map((feed) => (
+        {sortedFeeds.map((feed) => (
           <div key={feed.id} className="group flex items-center gap-1">
             <button
               type="button"

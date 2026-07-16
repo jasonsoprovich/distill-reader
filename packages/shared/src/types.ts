@@ -80,6 +80,7 @@ export interface FeedDTO {
   active: boolean;
   tags: TagDTO[];
   unreadCount: number;
+  createdAt: string;
 }
 
 export interface ArticleListItemDTO {
