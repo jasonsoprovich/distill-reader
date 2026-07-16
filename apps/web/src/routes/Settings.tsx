@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeftIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
-import { CREDENTIAL_PROVIDERS, READER_FONT_NAMES, READER_THEME_NAMES, SUMMARY_PROVIDERS, TTS_PROVIDERS } from "@distill/shared";
+import { CREDENTIAL_PROVIDERS, READER_THEME_NAMES, SUMMARY_PROVIDERS, TTS_PROVIDERS } from "@distill/shared";
 import type {
   CredentialProviderKind,
   ReaderFontName,
@@ -19,6 +19,7 @@ import {
   DEFAULT_READER_FONT_FAMILY,
   DEFAULT_READER_FONT_SIZE,
   DEFAULT_READER_THEME_NAME,
+  READER_FONT_GROUPS,
   READER_FONT_LABELS,
   READER_FONT_STACKS,
   READER_THEME_LABELS,
@@ -312,18 +313,33 @@ function ReaderThemePicker() {
         <span className="w-10 shrink-0 text-right">{fontSize}px</span>
       </label>
 
-      <div className="flex flex-wrap gap-2">
-        {READER_FONT_NAMES.map((font) => (
-          <button
-            key={font}
-            type="button"
-            onClick={() => pickFontFamily(font)}
-            className={cn(selectClass(), "px-3", fontFamily === font && "outline-2 outline-offset-2 outline-ring")}
-            style={{ fontFamily: READER_FONT_STACKS[font] }}
-          >
-            {READER_FONT_LABELS[font]}
-          </button>
-        ))}
+      <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+        Font
+        <select
+          className={selectClass()}
+          value={fontFamily}
+          onChange={(e) => pickFontFamily(e.target.value as ReaderFontName)}
+        >
+          {READER_FONT_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.fonts.map((font) => (
+                <option key={font} value={font} style={{ fontFamily: READER_FONT_STACKS[font] }}>
+                  {READER_FONT_LABELS[font]}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+
+      <div
+        className="rounded-md border border-[var(--surface-border)] px-3 py-3 text-sm"
+        style={{ fontFamily: READER_FONT_STACKS[fontFamily], fontSize: `${fontSize}px` }}
+      >
+        <p className="mb-1 text-xs font-medium text-[var(--surface-muted)]" style={{ fontFamily: undefined }}>
+          Preview — {READER_FONT_LABELS[fontFamily]}
+        </p>
+        The quick brown fox jumps over the lazy dog. 0123456789
       </div>
     </div>
   );

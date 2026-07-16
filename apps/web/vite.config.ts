@@ -36,8 +36,25 @@ export default defineConfig({
       workbox: {
         // Precache the built SPA shell only — API responses stay live
         // (auth-scoped, always fresh), no runtime-caching strategy for them.
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Fonts are deliberately excluded from the precache glob: the reader
+        // font picker (apps/web/src/lib/reader-fonts.ts) ships ~10 curated
+        // webfonts so only one is ever actually rendered at a time — forcing
+        // every visitor to download all of them upfront would bloat the
+        // install by several MB. runtimeCaching below caches each font the
+        // first time it's actually used instead.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /\.woff2?$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'reader-fonts',
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

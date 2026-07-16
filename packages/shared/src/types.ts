@@ -181,9 +181,27 @@ export interface TtsPrefs {
 export const READER_THEME_NAMES = ["light", "sepia", "dark", "high-contrast"] as const;
 export type ReaderThemeName = (typeof READER_THEME_NAMES)[number];
 
-// A small set of reader-friendly font families, in the spirit of an
-// e-reader's font picker — system font stacks only, no webfont loading.
-export const READER_FONT_NAMES = ["sans", "serif", "monospace"] as const;
+// The original system stacks ("sans"/"serif"/"monospace" — kept as-is so an
+// already-persisted choice doesn't silently break) plus a curated set of
+// open-source, reading-optimized webfonts, self-hosted via @fontsource (not
+// a Google Fonts CDN fetch — see apps/web/src/lib/reader-fonts.ts). The
+// webfont IDs match their @fontsource package slug 1:1 so font-loading
+// stays a straight lookup.
+export const READER_FONT_NAMES = [
+  "sans",
+  "serif",
+  "monospace",
+  "literata",
+  "lora",
+  "merriweather",
+  "eb-garamond",
+  "source-serif-4",
+  "pt-serif",
+  "open-sans",
+  "atkinson-hyperlegible",
+  "ibm-plex-sans",
+  "opendyslexic",
+] as const;
 export type ReaderFontName = (typeof READER_FONT_NAMES)[number];
 
 export interface ReaderTheme {

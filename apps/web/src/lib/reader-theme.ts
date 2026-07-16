@@ -28,17 +28,47 @@ export const DEFAULT_READER_THEME_NAME: ReaderThemeName = "light";
 export const DEFAULT_READER_FONT_SIZE = 17;
 
 export const READER_FONT_LABELS: Record<ReaderFontName, string> = {
-  sans: "Sans-serif",
-  serif: "Serif",
-  monospace: "Monospace",
+  sans: "System sans-serif",
+  serif: "System serif",
+  monospace: "System monospace",
+  literata: "Literata",
+  lora: "Lora",
+  merriweather: "Merriweather",
+  "eb-garamond": "EB Garamond",
+  "source-serif-4": "Source Serif 4",
+  "pt-serif": "PT Serif",
+  "open-sans": "Open Sans",
+  "atkinson-hyperlegible": "Atkinson Hyperlegible",
+  "ibm-plex-sans": "IBM Plex Sans",
+  opendyslexic: "OpenDyslexic",
 };
 
-// System font stacks only — no webfont loading, in the spirit of an
-// e-reader's built-in font picker.
+// Groups the font picker dropdown into sections — purely a UI grouping, not
+// persisted anywhere.
+export const READER_FONT_GROUPS: { label: string; fonts: ReaderFontName[] }[] = [
+  { label: "System", fonts: ["sans", "serif", "monospace"] },
+  { label: "Serif", fonts: ["literata", "lora", "merriweather", "eb-garamond", "source-serif-4", "pt-serif"] },
+  { label: "Sans-serif", fonts: ["open-sans", "ibm-plex-sans"] },
+  { label: "Accessibility", fonts: ["atkinson-hyperlegible", "opendyslexic"] },
+];
+
+// System stacks for the original three, plus each curated webfont with a
+// same-classification system fallback (self-hosted via @fontsource — see
+// apps/web/src/lib/reader-fonts.ts — not a Google Fonts CDN fetch).
 export const READER_FONT_STACKS: Record<ReaderFontName, string> = {
   sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif',
   serif: 'Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif',
   monospace: '"SF Mono", "Cascadia Code", Consolas, "Courier New", monospace',
+  literata: '"Literata", Georgia, serif',
+  lora: '"Lora", Georgia, serif',
+  merriweather: '"Merriweather", Georgia, serif',
+  "eb-garamond": '"EB Garamond", Georgia, serif',
+  "source-serif-4": '"Source Serif 4", Georgia, serif',
+  "pt-serif": '"PT Serif", Georgia, serif',
+  "open-sans": '"Open Sans", -apple-system, sans-serif',
+  "atkinson-hyperlegible": '"Atkinson Hyperlegible", -apple-system, sans-serif',
+  "ibm-plex-sans": '"IBM Plex Sans", -apple-system, sans-serif',
+  opendyslexic: '"OpenDyslexic", -apple-system, sans-serif',
 };
 
 export const DEFAULT_READER_FONT_FAMILY: ReaderFontName = "sans";
