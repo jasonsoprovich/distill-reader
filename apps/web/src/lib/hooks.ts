@@ -62,9 +62,17 @@ export function usePollFeed() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.pollFeed(id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: feedsQueryKey });
       queryClient.invalidateQueries({ queryKey: ["articles"] });
+      // The poll can legitimately find nothing new (e.g. dedup against
+      // already-ingested items) — without this the button silently
+      // succeeding reads identically to it doing nothing at all.
+      toast(
+        result.articlesInserted > 0
+          ? `Refreshed — ${result.articlesInserted} new article${result.articlesInserted === 1 ? "" : "s"}.`
+          : "Refreshed — no new articles.",
+      );
     },
     onError: () => toast("Couldn't refresh that feed — try again.", "error"),
   });

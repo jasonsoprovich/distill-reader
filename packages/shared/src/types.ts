@@ -114,6 +114,13 @@ export interface ArticlesPage {
   nextCursor: string | null;
 }
 
+// Response shape of POST /feeds/:id/poll — mirrors packages/extract's
+// IngestResult, trimmed to what the UI needs to report what happened.
+export interface FeedPollResultDTO {
+  articlesInserted: number;
+  itemsFetched: number;
+}
+
 export interface SummaryDTO {
   provider: SummaryProviderKind;
   model: string;
