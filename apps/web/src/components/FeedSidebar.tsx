@@ -1,12 +1,22 @@
-import { RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { useState } from "react";
+import { RefreshCwIcon, SettingsIcon, Trash2Icon } from "lucide-react";
 import { Link } from "react-router-dom";
 import AddFeedDialog from "@/components/AddFeedDialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { authClient } from "@/lib/auth-client";
-import { useFeeds, usePollFeed, useTags } from "@/lib/hooks";
+import { useDeleteFeed, useFeeds, usePollFeed, useTags } from "@/lib/hooks";
 import type { Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
-import type { ArticleView } from "@distill/shared";
+import type { ArticleView, FeedDTO } from "@distill/shared";
 
 interface FeedSidebarProps {
   selection: Selection;
@@ -20,10 +30,59 @@ const SMART_VIEWS: { view: ArticleView; label: string }[] = [
   { view: "cleared", label: "Removed" },
 ];
 
+function DeleteFeedButton({ feed, onDeleted }: { feed: FeedDTO; onDeleted: () => void }) {
+  const [open, setOpen] = useState(false);
+  const deleteFeed = useDeleteFeed();
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-destructive group-hover:inline-flex"
+          title="Delete feed"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Trash2Icon className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete "{feed.title}"?</DialogTitle>
+          <DialogDescription>
+            This removes the feed and all of its articles — read, starred, and removed ones included. This can't be
+            undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteFeed.isPending}
+            onClick={() =>
+              deleteFeed.mutate(feed.id, {
+                onSuccess: () => {
+                  setOpen(false);
+                  onDeleted();
+                },
+              })
+            }
+          >
+            {deleteFeed.isPending ? "Deleting…" : "Delete feed"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function navButtonClass(active: boolean) {
   return cn(
     "flex w-full items-center rounded-md px-2 py-1.5 text-sm",
-    active ? "bg-neutral-100 font-medium" : "hover:bg-neutral-50",
+    active ? "bg-[var(--surface-active)] font-medium" : "hover:bg-[var(--surface-hover)]",
   );
 }
 
@@ -140,6 +199,12 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
             >
               <RefreshCwIcon className="size-3.5" />
             </Button>
+            <DeleteFeedButton
+              feed={feed}
+              onDeleted={() => {
+                if (selection.kind === "feed" && selection.id === feed.id) onSelect({ kind: "all" });
+              }}
+            />
           </div>
         ))}
       </nav>

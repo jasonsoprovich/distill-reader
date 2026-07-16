@@ -54,7 +54,11 @@ export function useDeleteFeed() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteFeed(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: feedsQueryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+    },
+    onError: () => toast("Couldn't delete that feed — try again.", "error"),
   });
 }
 
