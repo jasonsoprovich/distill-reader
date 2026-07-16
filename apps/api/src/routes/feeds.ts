@@ -5,6 +5,7 @@ import { createFeedSchema, patchFeedSchema, previewFeedSchema } from "@distill/s
 import type { FeedDTO, TagDTO } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
+import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
 
 export const feedsRouter = new Hono<{ Variables: AuthVariables }>();
 feedsRouter.use("*", requireAuth);
@@ -76,7 +77,7 @@ feedsRouter.get("/", async (c) => {
 
 // Discovers a feed without persisting anything, so the add-feed dialog can
 // show a preview (auto-filled title/kind/favicon) before the user confirms.
-feedsRouter.post("/preview", async (c) => {
+feedsRouter.post("/preview", costlyRouteRateLimit, async (c) => {
   const body = previewFeedSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
 
@@ -170,7 +171,7 @@ feedsRouter.delete("/:id", async (c) => {
   return c.body(null, 204);
 });
 
-feedsRouter.post("/:id/poll", async (c) => {
+feedsRouter.post("/:id/poll", costlyRouteRateLimit, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const [row] = await db.select().from(feed).where(and(eq(feed.id, id), eq(feed.userId, userId)));

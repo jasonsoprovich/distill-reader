@@ -36,6 +36,7 @@ import type {
 } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
+import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
 
 export const articlesRouter = new Hono<{ Variables: AuthVariables }>();
 articlesRouter.use("*", requireAuth);
@@ -379,7 +380,7 @@ articlesRouter.get("/:id/summary", async (c) => {
 // under each provider call's own bounded timeout (PLAN §6.2) — the client
 // shows a spinner for the duration rather than polling a job status, since
 // no job-queue infrastructure exists elsewhere in this codebase.
-articlesRouter.post("/:id/summary", async (c) => {
+articlesRouter.post("/:id/summary", costlyRouteRateLimit, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const body = requestSummarySchema.safeParse(await c.req.json().catch(() => ({})));
@@ -584,7 +585,7 @@ articlesRouter.get("/:id/tts", async (c) => {
 // (mirrors POST /:id/summary — no job-queue infrastructure exists
 // elsewhere in this codebase) and writes the resulting file to
 // AUDIO_STORAGE_PATH before returning.
-articlesRouter.post("/:id/tts", async (c) => {
+articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const body = requestTtsSchema.safeParse(await c.req.json().catch(() => ({})));

@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { auth, trustedOrigins } from "./auth.js";
+import { authRateLimit, globalRateLimit } from "./middleware/rate-limit.js";
 import { articlesRouter } from "./routes/articles.js";
 import { credentialsRouter } from "./routes/credentials.js";
 import { feedsRouter } from "./routes/feeds.js";
@@ -29,6 +30,12 @@ app.use("/img", secureHeaders({ crossOriginResourcePolicy: "cross-origin" }));
 // it's safe to emit unconditionally ahead of the reverse-proxy TLS termination
 // self-hosted deployments are expected to run behind (§11).
 app.use("*", secureHeaders({ xFrameOptions: "DENY", strictTransportSecurity: "max-age=63072000; includeSubDomains" }));
+// Global abuse control (PLAN §10.6), ahead of auth/routing — see
+// middleware/rate-limit.ts for why it's keyed by IP here.
+app.use("*", globalRateLimit);
+// Stricter limit specifically on auth endpoints (PLAN §10.4 — blunt brute
+// force on login/reset), layered on top of the global limit above.
+app.use("/auth/*", authRateLimit);
 app.use(
   "/auth/*",
   cors({
