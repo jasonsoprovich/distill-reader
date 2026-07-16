@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PauseIcon, PlayIcon, RotateCcwIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { ChevronUpIcon, PauseIcon, PlayIcon, RotateCcwIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { computeOrpIndex, tokenizeForRsvp, wordDelayMultiplier } from "@distill/shared";
 import type { TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useSettings, useSummary, useUpdateSettings } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 
 interface RsvpReaderProps {
   articleId: string;
@@ -31,6 +32,13 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const loadedPrefsRef = useRef(false);
+  // Set only by the pickers below, not inferred from state changes —
+  // otherwise the load effect's own setWpm/setWordColor/etc calls (async,
+  // so this render's closure still holds pre-load defaults) can race a
+  // state-keyed persist effect into saving those defaults over the prefs
+  // that were just loaded (see Settings.tsx's ReaderThemePicker for the
+  // full writeup of this race).
+  const dirtyPrefsRef = useRef(false);
 
   const [wpm, setWpm] = useState(DEFAULT_WPM);
   const [wordColor, setWordColor] = useState(DEFAULT_WORD_COLOR);
@@ -48,6 +56,9 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
 
   const [index, setIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
+  // Collapsed by default — playback starts immediately on open, so the
+  // options grid would otherwise sit in front of the reader the whole time.
+  const [showSettings, setShowSettings] = useState(false);
 
   // Re-tokenizing on a source switch mid-read would otherwise leave `index`
   // pointing at the wrong word (or past the end) in the new word list.
@@ -71,7 +82,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
   }, [settings]);
 
   useEffect(() => {
-    if (!loadedPrefsRef.current) return;
+    if (!dirtyPrefsRef.current) return;
     const timer = setTimeout(() => {
       updateSettings.mutate({
         rsvpPrefs: { wpm, wordColor, backgroundColor, pivotColor, dimLevel, punctuationPauseEnabled, source },
@@ -82,6 +93,41 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
     // across renders and including it would re-arm the timer needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wpm, wordColor, backgroundColor, pivotColor, dimLevel, punctuationPauseEnabled, source]);
+
+  function pickWpm(next: number) {
+    dirtyPrefsRef.current = true;
+    setWpm(next);
+  }
+
+  function pickWordColor(next: string) {
+    dirtyPrefsRef.current = true;
+    setWordColor(next);
+  }
+
+  function pickBackgroundColor(next: string) {
+    dirtyPrefsRef.current = true;
+    setBackgroundColor(next);
+  }
+
+  function pickPivotColor(next: string) {
+    dirtyPrefsRef.current = true;
+    setPivotColor(next);
+  }
+
+  function pickDimLevel(next: number) {
+    dirtyPrefsRef.current = true;
+    setDimLevel(next);
+  }
+
+  function pickPunctuationPauseEnabled(next: boolean) {
+    dirtyPrefsRef.current = true;
+    setPunctuationPauseEnabled(next);
+  }
+
+  function pickSource(next: TtsSource) {
+    dirtyPrefsRef.current = true;
+    setSource(next);
+  }
 
   const isDone = words.length > 0 && index >= words.length;
 
@@ -163,7 +209,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
         </div>
       </div>
 
-      <div className="relative flex flex-col gap-4 border-t border-neutral-800 px-6 py-4">
+      <div className="relative flex flex-col gap-3 border-t border-neutral-800 px-6 py-4">
         <div className="flex items-center justify-center gap-3">
           <Button variant="ghost" size="icon" className="size-9 text-neutral-300" title="Rewind" onClick={rewind}>
             <RotateCcwIcon className="size-4" />
@@ -186,6 +232,16 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
           </Button>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setShowSettings((s) => !s)}
+          className="mx-auto flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-300"
+        >
+          <ChevronUpIcon className={cn("size-3.5 transition-transform", !showSettings && "rotate-180")} />
+          {showSettings ? "Hide options" : "Show options"}
+        </button>
+
+        {showSettings && (
         <div className="mx-auto grid w-full max-w-xl grid-cols-2 gap-x-8 gap-y-3 text-sm text-neutral-300">
           <label className="col-span-2 flex items-center gap-3">
             <span className="w-24 shrink-0">Speed</span>
@@ -194,7 +250,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
               min={100}
               max={800}
               step={10}
-              onValueChange={([v]) => setWpm(v)}
+              onValueChange={([v]) => pickWpm(v)}
               className="flex-1"
             />
             <span className="w-16 shrink-0 text-right">{wpm} wpm</span>
@@ -207,7 +263,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
               min={0}
               max={0.9}
               step={0.05}
-              onValueChange={([v]) => setDimLevel(v)}
+              onValueChange={([v]) => pickDimLevel(v)}
               className="flex-1"
             />
             <span className="w-16 shrink-0 text-right">{Math.round(dimLevel * 100)}%</span>
@@ -218,7 +274,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
             <input
               type="color"
               value={wordColor}
-              onChange={(e) => setWordColor(e.target.value)}
+              onChange={(e) => pickWordColor(e.target.value)}
               className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
             />
           </label>
@@ -228,7 +284,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
             <input
               type="color"
               value={pivotColor}
-              onChange={(e) => setPivotColor(e.target.value)}
+              onChange={(e) => pickPivotColor(e.target.value)}
               className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
             />
           </label>
@@ -238,7 +294,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
             <input
               type="color"
               value={backgroundColor}
-              onChange={(e) => setBackgroundColor(e.target.value)}
+              onChange={(e) => pickBackgroundColor(e.target.value)}
               className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
             />
           </label>
@@ -251,7 +307,7 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
             <select
               className="h-8 flex-1 rounded-md border border-neutral-700 bg-transparent px-2 text-sm outline-none"
               value={source}
-              onChange={(e) => setSource(e.target.value as TtsSource)}
+              onChange={(e) => pickSource(e.target.value as TtsSource)}
             >
               <option value="full">Full article</option>
               <option value="summary" disabled={!hasSummary}>
@@ -264,12 +320,13 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
             <input
               type="checkbox"
               checked={punctuationPauseEnabled}
-              onChange={(e) => setPunctuationPauseEnabled(e.target.checked)}
+              onChange={(e) => pickPunctuationPauseEnabled(e.target.checked)}
               className="size-4 cursor-pointer"
             />
             <span>Pause on punctuation</span>
           </label>
         </div>
+        )}
       </div>
     </div>
   );
