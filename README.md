@@ -1,6 +1,6 @@
 # Distill
 
-A self-hosted, cybersecurity-focused RSS/API news reader. See [`docs/PLAN.md`](docs/PLAN.md) for the full build brief (architecture, data model, security requirements, phased build order).
+A cybersecurity-focused RSS/API news reader — self-hosted via Docker today, with cloud hosting planned as an additive option later (both stay supported). Browser-based on desktop and mobile (responsive, installable PWA); no native app is planned — see [`docs/PLAN.md`](docs/PLAN.md) for the full build brief (architecture, data model, security requirements, phased build order) and its §14 for the React Native evaluation behind that call.
 
 ## Monorepo layout
 
@@ -40,4 +40,4 @@ Phase 7 (Text-to-Speech) complete — see `docs/PLAN.md` §13 for the phased bui
 
 ## Scale-up security checklist
 
-Before any public/multi-user hosting, see `docs/PLAN.md` §10.7.
+Before any public/multi-user hosting, see `docs/PLAN.md` §10.7 and `docs/COMPLIANCE.md` (copyright/legal risk research — not legal advice).

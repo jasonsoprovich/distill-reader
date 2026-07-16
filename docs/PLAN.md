@@ -1,6 +1,6 @@
 # Aggregator — Product Development Plan
 
-A self-hosted, cybersecurity-focused news reader. Pulls articles from RSS/Atom feeds and APIs, strips ads and inconsistent formatting, normalizes everything into one clean reading experience, and offers optional AI summaries, audio narration (TTS), and an RSVP speed-reader. Built to run as a single-user Docker deployment today, and to scale into a multi-user hosted service later without a rewrite.
+A cybersecurity-focused news reader. Pulls articles from RSS/Atom feeds and APIs, strips ads and inconsistent formatting, normalizes everything into one clean reading experience, and offers optional AI summaries, audio narration (TTS), and an RSVP speed-reader. Built to run as a single-user self-hosted Docker deployment today, and to scale into a multi-user cloud-hosted service later without a rewrite — self-hosted Docker stays supported permanently for users who want it, alongside cloud hosting once built. Browser-based (desktop and mobile, via a responsive installable PWA) is the permanent client target — no native app is planned (§14).
 
 > **How to use this file:** This is the build brief for Claude Code. Work through it in the phased order in **§13**. Do not skip the security requirements in **§10** — they are acceptance criteria, not suggestions. When a decision was already made, it is stated as a requirement; when something is left open, it is flagged **[DECIDE]**.
 
@@ -20,10 +20,11 @@ A self-hosted, cybersecurity-focused news reader. Pulls articles from RSS/Atom f
 - **Tag-based categorization** of feeds.
 - **Auto-purge** to prevent DB bloat: read articles older than *X* days, unread older than *Y* days; starred articles kept forever.
 - **Auth from day one** (single user now), with a schema and architecture that make multi-user hosting an additive change, not a rewrite.
+- **A genuinely responsive, installable web app** (PWA: manifest + service worker) so desktop and mobile/tablet browsers both get a first-class experience without a native app. See §14 for the React Native evaluation behind this call.
 
 ### Non-Goals (v1)
 - Multi-tenant hosting / billing / user self-registration (schema is prepared for it; UI/ops are not built).
-- Mobile native apps (the SPA should be responsive, but no iOS/Android builds).
+- **Native mobile apps (iOS/Android), ever, by current decision** — not just deferred. Browser (desktop + mobile, via a responsive PWA) is the permanent target. See §14.
 - Social features, sharing, comments.
 - Browser extension.
 
@@ -151,7 +152,7 @@ All user-owned tables carry `user_id` from day one, even though there's one user
 - `id`, `user_id`, `article_id`
 - `read_at` (timestamptz, nullable) — null = unread
 - `starred` (bool, default false)
-- `cleared_at` (timestamptz, nullable) — "removed from feed, not interested"
+- `cleared_at` (timestamptz, nullable) — "removed from feed" (declutter, not a content-preference signal — see §8.2)
 - unique on `(user_id, article_id)`
 
 **`summary`**
@@ -168,21 +169,22 @@ All user-owned tables carry `user_id` from day one, even though there's one user
 - `provider` (enum: `elevenlabs` | `piper`)
 - `voice` (text) — voice id / model name
 - `format` (text) — `mp3` | `opus` | `wav`
+- `source` (enum: `full` | `summary`, default `full`) — narrate the full extracted article or the cached AI summary; distinct token/character cost, so it's part of the cache key
 - `storage_key` (text) — path/key on the audio volume (see §11)
 - `duration_seconds` (numeric, nullable)
 - `char_count` (int)
 - `timings` (jsonb, nullable) — word/sentence timestamps when the provider supplies them (ElevenLabs)
 - `settings_version` (text) — cache invalidation when voice/format/params change
 - `created_at`
-- unique on `(article_id, user_id, provider, voice, format, settings_version)` — the cache key.
+- unique on `(article_id, user_id, provider, voice, format, source, settings_version)` — the cache key.
 
 **`user_settings`**
 - `user_id` (pk)
 - `default_retention_read_days` (int, default 30)
 - `default_retention_unread_days` (int, default 90)
 - `reader_theme` (jsonb) — font, size, color scheme
-- `rsvp_prefs` (jsonb) — wpm, word color, bg dim, pivot color, punctuation pause
-- `tts_prefs` (jsonb) — default provider, default voice, default playback speed, highlight-follow on/off
+- `rsvp_prefs` (jsonb) — wpm, word color, bg dim, pivot color, punctuation pause, default source (`full` | `summary`)
+- `tts_prefs` (jsonb) — default provider, default voice, default playback speed, highlight-follow on/off, default source (`full` | `summary`)
 - `default_summary_provider` (enum, nullable)
 - `default_tts_provider` (enum, nullable)
 
@@ -231,6 +233,8 @@ interface SourceAdapter {
 
 ### 5.3 Full-text extraction (all kinds)
 Even when a feed provides `contentHtml`, many feeds ship truncated/ad-laden bodies. Always resolve the canonical article URL and run readability-grade extraction to get the clean main content. Then:
+
+> **Copyright note (see `docs/COMPLIANCE.md`):** extracting full text beyond what a feed *intentionally* publishes as a short excerpt is the single biggest copyright-exposure point identified in that research — it's structurally the closest thing to what commercial aggregators have lost fair-use cases over (e.g. *AP v. Meltwater*). Full extraction from sources that already publish full-text feeds (most of the §5.5 preseed list) carries materially less exposure. **[DECIDE]** whether "extract beyond the feed's own excerpt" should be opt-in per source rather than the unconditional default below.
 - Strip scripts, styles, tracking pixels, ad containers, share widgets.
 - Rewrite/normalize headings, links (open external in new tab, `rel="noopener noreferrer"`), images (lazy, capped width).
 - **Sanitize** the resulting HTML with an allowlist (§10) before storing in `content_html`.
@@ -286,8 +290,8 @@ Pluggable `TtsProvider` interface: `synthesize(text, voice, opts) → { audio, t
 - **Piper (`piper`)** — local self-hosted neural TTS, **no key**, addressed via `base_url` exactly like Ollama. Runs as an optional sidecar container. Zero cost, nothing leaves the network. (The user already runs Piper on Apple Silicon for another project — known-good fit; default local option.)
 
 ### 7.2 Behavior
-- **Default: on-demand with caching**, same shape as summaries. Cache key is `(article_id, user_id, provider, voice, format, settings_version)` (§4). Hit → serve stored audio. Miss → synthesize, persist to the audio volume, write the `tts_audio` row, serve.
-- Synthesize from `content_text` (already ad-free and normalized).
+- **Default: on-demand with caching**, same shape as summaries. Cache key is `(article_id, user_id, provider, voice, format, source, settings_version)` (§4). Hit → serve stored audio. Miss → synthesize, persist to the audio volume, write the `tts_audio` row, serve.
+- **Source selection:** the user picks `full` (synthesize from `content_text`, already ad-free and normalized) or `summary` (synthesize from the cached `summary.content` — requires a summary to exist first; prompt the user to generate one if it doesn't). This matters because the two have very different character counts, and ElevenLabs bills per character — full-article narration on a long piece can cost far more than the summary. Default comes from `user_settings.tts_prefs`, overridable per request.
 - **Long articles:** split by paragraph/sentence, synthesize sequentially, concatenate. **Stream the first chunk** to the player while later chunks generate so playback starts fast; finalize the cached file when all chunks complete.
 - Store audio **on a filesystem volume, not in Postgres** (audio is large). The DB holds only the `storage_key` + metadata. Audio is deleted when its article is purged (§5.4 / retention).
 - Capture **word/sentence timings** into `tts_audio.timings` when the provider returns them (ElevenLabs). Piper may not — degrade gracefully (plain playback, no highlight).
@@ -297,6 +301,7 @@ Pluggable `TtsProvider` interface: `synthesize(text, voice, opts) → { audio, t
 ### 7.3 Playback UI (reader)
 A self-contained audio-player module in the reader, sitting alongside the "Summarize" and "Speed-read" controls:
 - **Listen** button → play / pause, scrubber, elapsed/total time.
+- **Source toggle:** full article vs. AI summary (see §7.2) — disabled/hinted if no summary has been generated yet.
 - **Playback speed** (0.75×–2×) and **skip ±15s**.
 - **Voice picker** populated from the provider's available voices (§7.4).
 - **Highlight-follow (karaoke-style):** when `timings` exist, highlight the current sentence/word in the article body in sync with audio. Graceful fallback to plain playback when timings are absent. *(Nice-to-have — can ship after basic playback; see §14.)*
@@ -313,14 +318,14 @@ A self-contained audio-player module in the reader, sitting alongside the "Summa
 ### 8.1 Core screens
 - **Feed list / sidebar:** all feeds grouped by tag, with unread counts. "All", "Unread", "Starred" smart views.
 - **Article list:** for a selected feed/tag/view — title, source, time, excerpt, read/unread state. Bulk actions (mark all read, clear read).
-- **Reader pane:** the normalized article. One typographic system, user-selectable theme (§8.3). Actions: mark read/unread, star, clear ("not interested"), summarize, **listen (TTS)**, open original, launch speed-reader.
+- **Reader pane:** the normalized article. One typographic system, user-selectable theme (§8.3). Actions: mark read/unread, star, remove from feed (trash icon), summarize, **listen (TTS)**, open original, launch speed-reader.
 - **Add-feed dialog:** paste URL → preview (auto-filled name, detected kind) → assign tags → save.
 - **Settings:** API credentials (add/remove, never displayed after save), default summary provider, default TTS provider/voice, retention defaults, reader theme, RSVP defaults, TTS defaults.
 
 ### 8.2 Read-state behavior
 - **Auto-mark-as-read on view:** when an article is opened/scrolled in the reader, mark read (debounced), with a user setting to disable.
 - **Manual toggle** always available.
-- **Clear / "not interested":** sets `cleared_at`; removes from default lists. A "Cleared" view allows undo.
+- **Remove from feed:** trash-icon action (not "not interested" — the user already curated these feeds themselves, so it's a removal/declutter action, not a content-preference signal). Sets `cleared_at`; removes from default lists. A "Removed" view allows undo.
 - All read/clear/star actions are **optimistic** in TanStack Query, reconciled with the server; failures roll back with a toast.
 
 ### 8.3 Reader typography & themes
@@ -328,7 +333,7 @@ A self-contained audio-player module in the reader, sitting alongside the "Summa
 - Built-in themes: Light, Sepia, Dark, and a high-contrast option. Persist in `user_settings.reader_theme`.
 
 ### 8.4 RSVP speed-reader (self-contained module)
-Blaze/Spritz-style, driven by `content_text`:
+Blaze/Spritz-style, driven by `content_text` or, if the user toggles **source: summary**, the cached `summary.content` instead (same rationale as the TTS source toggle in §7.2 — full article and summary are meaningfully different reading-time/token commitments; toggle disabled/hinted if no summary exists yet). Default source comes from `user_settings.rsvp_prefs`.
 - Dims the surrounding screen; shows **one word at a time** centered.
 - **Adjustable WPM** (live).
 - **Adjustable word color + background** and **screen dim** level.
@@ -373,7 +378,7 @@ POST   /articles/read-all           # { feedId? | tagId? }
 POST   /articles/:id/summary        # { provider?, model? } → cached or generated
 GET    /articles/:id/summary        # cached only
 
-POST   /articles/:id/tts            # { provider?, voice? } → cached or generated; returns audio URL + metadata
+POST   /articles/:id/tts            # { provider?, voice?, source?: 'full'|'summary' } → cached or generated; returns audio URL + metadata
 GET    /articles/:id/tts            # cached audio metadata (+ stream URL)
 GET    /tts/audio/:id               # auth-scoped audio stream (NOT a public static path — see §10)
 GET    /tts/voices                  # ?provider= → available voices
@@ -431,6 +436,7 @@ This app fetches arbitrary user-supplied URLs and renders third-party HTML. Trea
 
 ### 10.7 Scale-up security checklist (documented now, built later)
 Explicitly note these in the README as prerequisites before any public/multi-user hosting:
+- **Copyright/legal compliance review** — see `docs/COMPLIANCE.md` for product-planning research (not legal advice) on RSS/full-text extraction, AI summaries, and TTS narration. Register a DMCA §512 designated agent and takedown policy, and get actual legal counsel, before charging money or opening multi-user hosting.
 - Per-user data isolation verified end-to-end (every query scoped by `user_id`, **including audio files**; add row-level tests).
 - Move secrets to a managed secret store (Vault / cloud KMS); rotate the encryption key with envelope encryption.
 - Managed Postgres with encryption at rest, automated backups, least-privilege DB user.
@@ -495,7 +501,7 @@ Build in this order; each phase should end runnable.
 
 **Phase 3 — Read-state & organization**
 - Mark read / auto-mark-on-view / star / clear, optimistic updates.
-- Tags + tag views; Unread / Starred / Cleared smart views. Bulk "mark all read".
+- Tags + tag views; Unread / Starred / Removed smart views. Bulk "mark all read".
 - Purge job (retention defaults + per-feed overrides) — including deletion of orphaned audio files.
 
 **Phase 4 — Hacker News API adapter**
@@ -515,7 +521,10 @@ Build in this order; each phase should end runnable.
 
 **Phase 8 — Hardening & polish**
 - CSP + security headers, rate limiting (incl. TTS/summary cost routes), audit logging, dependency scan in CI.
-- Theme system, responsive layout, empty/error/loading states. README incl. the §10.7 scale-up checklist.
+- Theme system, empty/error/loading states. README incl. the §10.7 scale-up checklist.
+- **Responsive layout (first-class, not an afterthought):** the three-pane desktop layout (sidebar / list / reader) collapses to a single-pane, navigable view on phone/tablet — drawer-style feed list, tap-to-open reader, touch-friendly tap targets. This is the app's permanent mobile story (§1, §14), not a stopgap.
+- **PWA setup:** web app manifest + service worker for installability ("Add to Home Screen," full-screen app-like feel) and best-effort push notifications (reliable on Android/desktop Chrome; iOS only once installed to home screen, and less reliable there — acceptable given push is a minor, non-core feature per §14).
+- Note: background/lock-screen audio playback for TTS is weaker on mobile web than it would be natively — documented known limitation, not a blocker, given TTS is a minor feature for the target use case (§14).
 
 ---
 
@@ -528,3 +537,11 @@ Build in this order; each phase should end runnable.
 - **[DECIDE]** Default TTS provider + audio format. *Lean: Piper + `mp3` if Piper is configured (zero cost, local); else ElevenLabs.*
 - **[DECIDE]** Ship highlight-follow (karaoke sync) in v1, or defer to a follow-up? It depends on provider timings and adds reader-sync complexity. *Lean: basic playback in Phase 7, highlight-follow as a fast-follow.*
 - **[RESOLVED — Phase 1]** Account creation for the single v1 user: a gated first-run `/setup` page (SPA) backed by `GET /setup/status` and a `POST /auth/sign-up/email` that both check "does any user already exist" — sign-up works exactly once, then locks out permanently (returns 403). This satisfies the "no public self-registration" non-goal (it's single-use bootstrap, not open registration) while still giving the user an actual way to create their account, instead of only the `INITIAL_USER_EMAIL`/`INITIAL_USER_PASSWORD` env-var seed path (kept as an optional non-interactive alternative for headless deploys). When multi-user hosting is built later (§10.7), this gate is what needs to be replaced with real invite/registration flows.
+
+- **[RESOLVED — pre-Phase 8]** Stay on the current stack (Vite + React SPA, Tailwind + shadcn/Radix) rather than porting to Expo + React Native Web for a "universal" (native + web) app. Considered explicitly because most users are expected to be mobile, and self-hosted Docker use (the original use case) will become the minority once cloud hosting exists. The case for React Native was: one codebase for desktop web, mobile web, and a future native app, plus better push notifications and true background TTS-audio playback than a web PWA can offer. The decision came down to priorities: cloud-hosted, browser-based use (desktop and mobile) is the majority target; push notifications and TTS are both real but explicitly *minor* features, not core ones; and no native (iOS/Android) app is planned, ever — browser-only is the permanent target. Given that, React Native's real, structural downsides weren't worth paying for "would be nice" upside:
+  - Radix's DOM-native accessibility (ARIA, keyboard nav, focus management) is materially better than React Native Web's thinner emulation.
+  - Full CSS (incl. `@tailwindcss/typography`'s `prose` classes, already used for reader typography) is more expressive than NativeWind's subset — a real regression risk for the app's core typography-driven value prop.
+  - Desktop-native interactions (right-click, hover, keyboard shortcuts, real URLs/back-forward, multi-window) are only partially emulated by React Native Web, and desktop browser use (the self-hosted origin use case) matters and would get worse, not better.
+  - The web export of an Expo/RNW app still runs in a real browser rendering real DOM — it still needs the same CSP/security-header work as today; that cost isn't avoided, only the native-only targets would skip it (and there are no native targets in this plan).
+  - Publishing a native iOS app with paid subscriptions would mean Apple's mandatory 15–30% in-app-purchase cut — moot here since no native app is planned, but was a factor in the decision.
+  - Net: mobile support is delivered instead via a genuinely responsive layout + installable PWA (see Phase 8 in §13) — best-effort push and TTS on mobile web are accepted, documented limitations, not blockers, given both are minor features.
