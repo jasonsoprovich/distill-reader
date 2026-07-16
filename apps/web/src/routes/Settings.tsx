@@ -266,6 +266,11 @@ function ReaderThemePicker() {
 }
 
 export default function Settings() {
+  // Each picker below independently calls useSettings() (cheap/deduped by
+  // React Query), so a load failure would otherwise just make every section
+  // vanish with no explanation — this banner is the one place that says why.
+  const { isError: isSettingsError, refetch: refetchSettings } = useSettings();
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <Link to="/" className="mb-6 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900">
@@ -274,6 +279,15 @@ export default function Settings() {
       </Link>
 
       <h1 className="text-xl font-semibold">Settings</h1>
+
+      {isSettingsError && (
+        <div className="mt-4 flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <span>Couldn't load your settings.</span>
+          <button type="button" onClick={() => refetchSettings()} className="underline underline-offset-2">
+            Retry
+          </button>
+        </div>
+      )}
 
       <section className="mt-6 flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-neutral-700">Reader theme</h2>

@@ -76,7 +76,7 @@ function SummaryPanel({ articleId, isDarkTheme }: { articleId: string; isDarkThe
 }
 
 export default function ArticleReader({ articleId, onBack, className }: ArticleReaderProps) {
-  const { data: article, isLoading } = useArticle(articleId);
+  const { data: article, isLoading, isError, refetch } = useArticle(articleId);
   const { data: settings } = useSettings();
   const markRead = useMarkRead();
   const starArticle = useStarArticle();
@@ -109,11 +109,32 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
     );
   }
 
-  if (isLoading || !article) {
+  if (isLoading) {
     return (
       <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
         <div className="p-6 text-sm" style={{ color: theme.muted }}>
           Loading…
+        </div>
+      </main>
+    );
+  }
+
+  // Without this, a failed fetch left `article` undefined and fell through
+  // to the `isLoading` branch above forever — an infinite spinner with no
+  // way out except navigating away.
+  if (isError || !article) {
+    return (
+      <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
+        <div className="flex flex-col gap-3 p-6 text-sm" style={{ color: theme.muted }}>
+          <p>Couldn't load this article.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="self-start rounded-md border px-3 py-1.5"
+            style={{ borderColor: theme.muted, color: theme.color }}
+          >
+            Retry
+          </button>
         </div>
       </main>
     );

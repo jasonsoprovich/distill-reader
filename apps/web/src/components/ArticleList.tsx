@@ -25,7 +25,11 @@ export default function ArticleList({
   className,
 }: ArticleListProps) {
   const { feedId, tagId, view } = selectionToArticlesParams(selection);
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useArticles(feedId, tagId, view);
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useArticles(
+    feedId,
+    tagId,
+    view,
+  );
   const starArticle = useStarArticle();
   const clearArticle = useClearArticle();
   const readAll = useReadAll();
@@ -68,7 +72,15 @@ export default function ArticleList({
 
       <div className="flex-1 overflow-y-auto">
         {isLoading && <p className="p-4 text-sm text-neutral-400">Loading articles…</p>}
-        {!isLoading && articles.length === 0 && (
+        {isError && (
+          <div className="flex flex-col items-start gap-1 p-4 text-sm text-destructive">
+            <span>Couldn't load articles.</span>
+            <button type="button" onClick={() => refetch()} className="underline underline-offset-2">
+              Retry
+            </button>
+          </div>
+        )}
+        {!isLoading && !isError && articles.length === 0 && (
           <p className="p-4 text-sm text-neutral-400">
             No articles yet. New items appear here once a feed is polled.
           </p>

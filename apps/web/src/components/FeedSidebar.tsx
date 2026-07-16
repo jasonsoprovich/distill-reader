@@ -28,7 +28,7 @@ function navButtonClass(active: boolean) {
 }
 
 export default function FeedSidebar({ selection, onSelect, className }: FeedSidebarProps) {
-  const { data: feeds = [], isLoading } = useFeeds();
+  const { data: feeds = [], isLoading, isError, refetch: refetchFeeds } = useFeeds();
   const { data: tags = [] } = useTags();
   const pollFeed = usePollFeed();
 
@@ -87,7 +87,15 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
         </div>
 
         {isLoading && <p className="px-2 py-1.5 text-xs text-neutral-400">Loading feeds…</p>}
-        {!isLoading && feeds.length === 0 && (
+        {isError && (
+          <div className="flex flex-col items-start gap-1 px-2 py-1.5 text-xs text-destructive">
+            <span>Couldn't load feeds.</span>
+            <button type="button" onClick={() => refetchFeeds()} className="underline underline-offset-2">
+              Retry
+            </button>
+          </div>
+        )}
+        {!isLoading && !isError && feeds.length === 0 && (
           <p className="px-2 py-1.5 text-xs text-neutral-400">No feeds yet — add one to get started.</p>
         )}
 

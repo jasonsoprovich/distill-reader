@@ -48,9 +48,14 @@ export default function AddFeedDialog() {
 
   async function handleCreateTag() {
     if (!newTagName.trim()) return;
-    const created = await createTag.mutateAsync({ name: newTagName.trim() });
-    setSelectedTagIds((prev) => [...prev, created.id]);
-    setNewTagName("");
+    try {
+      const created = await createTag.mutateAsync({ name: newTagName.trim() });
+      setSelectedTagIds((prev) => [...prev, created.id]);
+      setNewTagName("");
+    } catch {
+      // useCreateTag's onError already surfaces a toast; nothing more to do
+      // here beyond not proceeding to select/clear the (non-existent) tag.
+    }
   }
 
   function toggleTag(id: string) {

@@ -66,6 +66,7 @@ export function usePollFeed() {
       queryClient.invalidateQueries({ queryKey: feedsQueryKey });
       queryClient.invalidateQueries({ queryKey: ["articles"] });
     },
+    onError: () => toast("Couldn't refresh that feed — try again.", "error"),
   });
 }
 
@@ -78,6 +79,7 @@ export function useCreateTag() {
   return useMutation({
     mutationFn: (input: { name: string; color?: string | null }) => api.createTag(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tagsQueryKey }),
+    onError: () => toast("Couldn't create that tag — try again.", "error"),
   });
 }
 
@@ -311,6 +313,7 @@ export function useDeleteCredential() {
   return useMutation({
     mutationFn: (id: string) => api.deleteCredential(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: credentialsQueryKey }),
+    onError: () => toast("Couldn't delete that credential — try again.", "error"),
   });
 }
 
