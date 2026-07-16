@@ -176,7 +176,9 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
         />
       </article>
 
-      {isRsvpOpen && <RsvpReader text={article.contentText} onExit={() => setIsRsvpOpen(false)} />}
+      {isRsvpOpen && (
+        <RsvpReader articleId={article.id} fullText={article.contentText} onExit={() => setIsRsvpOpen(false)} />
+      )}
     </main>
   );
 }

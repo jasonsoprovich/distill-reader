@@ -14,6 +14,7 @@ import type {
   TagDTO,
   TtsAudioDTO,
   TtsProviderKind,
+  TtsSource,
   TtsVoiceDTO,
 } from "@distill/shared";
 
@@ -108,15 +109,16 @@ export const api = {
       body: JSON.stringify(provider ? { provider } : {}),
     }),
 
-  getTtsAudio: async (articleId: string) => {
+  getTtsAudio: async (articleId: string, source?: TtsSource) => {
     try {
-      return await apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts`);
+      const qs = source ? `?source=${encodeURIComponent(source)}` : "";
+      return await apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts${qs}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) return null;
       throw err;
     }
   },
-  requestTts: (articleId: string, opts: { provider?: TtsProviderKind; voice?: string } = {}) =>
+  requestTts: (articleId: string, opts: { provider?: TtsProviderKind; voice?: string; source?: TtsSource } = {}) =>
     apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts`, { method: "POST", body: JSON.stringify(opts) }),
   updatePlaybackPosition: (articleId: string, positionSeconds: number) =>
     apiFetch<{ positionSeconds: number | null }>(`/articles/${articleId}/playback-position`, {

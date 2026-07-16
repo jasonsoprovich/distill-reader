@@ -17,6 +17,7 @@ import type {
   PatchSettingsInput,
   SummaryProviderKind,
   TtsProviderKind,
+  TtsSource,
 } from "@distill/shared";
 import { api, ApiError, type ReadAllParams } from "./api";
 import { toast } from "./toast";
@@ -27,7 +28,8 @@ export const articlesQueryKey = (feedId?: string, tagId?: string, view?: Article
   ["articles", { feedId, tagId, view }] as const;
 export const articleQueryKey = (id: string) => ["article", id] as const;
 export const summaryQueryKey = (articleId: string) => ["summary", articleId] as const;
-export const ttsAudioQueryKey = (articleId: string) => ["tts-audio", articleId] as const;
+export const ttsAudioQueryKey = (articleId: string, source: TtsSource = "full") =>
+  ["tts-audio", articleId, source] as const;
 export const ttsVoicesQueryKey = (provider: TtsProviderKind) => ["tts-voices", provider] as const;
 export const credentialsQueryKey = ["credentials"] as const;
 export const settingsQueryKey = ["settings"] as const;
@@ -241,10 +243,10 @@ export function useRequestSummary() {
 
 // --- TTS audio narration ---------------------------------------------------
 
-export function useTtsAudio(articleId: string | null) {
+export function useTtsAudio(articleId: string | null, source: TtsSource = "full") {
   return useQuery({
-    queryKey: ttsAudioQueryKey(articleId ?? "none"),
-    queryFn: () => api.getTtsAudio(articleId as string),
+    queryKey: ttsAudioQueryKey(articleId ?? "none", source),
+    queryFn: () => api.getTtsAudio(articleId as string, source),
     enabled: Boolean(articleId),
   });
 }
@@ -256,13 +258,15 @@ export function useRequestTts() {
       articleId,
       provider,
       voice,
+      source,
     }: {
       articleId: string;
       provider?: TtsProviderKind;
       voice?: string;
-    }) => api.requestTts(articleId, { provider, voice }),
-    onSuccess: (audio, { articleId }) => {
-      queryClient.setQueryData(ttsAudioQueryKey(articleId), audio);
+      source?: TtsSource;
+    }) => api.requestTts(articleId, { provider, voice, source }),
+    onSuccess: (audio, { articleId, source }) => {
+      queryClient.setQueryData(ttsAudioQueryKey(articleId, source ?? "full"), audio);
     },
     onError: (err) => {
       toast(err instanceof ApiError ? err.message : "Couldn't generate audio — try again.", "error");

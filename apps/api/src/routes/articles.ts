@@ -32,6 +32,7 @@ import type {
   SummaryProviderKind,
   TtsAudioDTO,
   TtsProviderKind,
+  TtsSource,
 } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
@@ -118,7 +119,7 @@ articlesRouter.get("/", async (c) => {
   } else if (view === "cleared") {
     conditions.push(isNotNull(articleState.clearedAt));
   } else {
-    // Default view excludes cleared ("not interested") articles.
+    // Default view excludes removed ("cleared") articles.
     conditions.push(isNull(articleState.clearedAt));
   }
   if (cursor) {
@@ -480,6 +481,7 @@ function toTtsAudioDTO(row: typeof ttsAudio.$inferSelect): TtsAudioDTO {
     provider: row.provider,
     voice: row.voice,
     format: row.format,
+    source: row.source,
     durationSeconds: row.durationSeconds != null ? Number(row.durationSeconds) : null,
     charCount: row.charCount,
     timings: row.timings as TtsAudioDTO["timings"],
@@ -515,15 +517,41 @@ async function logTtsError(userId: string, articleId: string, provider: string, 
   });
 }
 
-function ttsCacheConditions(id: string, userId: string, provider: TtsProviderKind, voice: string, format: string) {
+function ttsCacheConditions(
+  id: string,
+  userId: string,
+  provider: TtsProviderKind,
+  voice: string,
+  format: string,
+  source: TtsSource,
+) {
   return and(
     eq(ttsAudio.articleId, id),
     eq(ttsAudio.userId, userId),
     eq(ttsAudio.provider, provider),
     eq(ttsAudio.voice, voice),
     eq(ttsAudio.format, format),
+    eq(ttsAudio.source, source),
     eq(ttsAudio.settingsVersion, TTS_SETTINGS_VERSION),
   );
+}
+
+// Resolves the text to narrate/speed-read for a given source choice. For
+// "summary" there's no provider/model pinned down at this layer (mirrors
+// GET /:id/summary's own cache-only, provider-agnostic lookup) — the most
+// recently generated cached summary for this article/user wins. Returns
+// null if source is "summary" but none has been generated yet, so callers
+// can prompt the user to summarize first rather than silently falling back
+// to the full article (PLAN §7.2).
+async function resolveTtsSourceText(userId: string, articleId: string, source: TtsSource, fullText: string) {
+  if (source === "full") return fullText;
+  const [cachedSummary] = await db
+    .select({ content: summary.content })
+    .from(summary)
+    .where(and(eq(summary.articleId, articleId), eq(summary.userId, userId)))
+    .orderBy(desc(summary.createdAt))
+    .limit(1);
+  return cachedSummary?.content ?? null;
 }
 
 // Cached only — mirrors GET /:id/summary; never triggers generation, so
@@ -540,6 +568,7 @@ articlesRouter.get("/:id/tts", async (c) => {
   const conditions = [
     eq(ttsAudio.articleId, id),
     eq(ttsAudio.userId, userId),
+    eq(ttsAudio.source, query.data.source ?? "full"),
     eq(ttsAudio.settingsVersion, TTS_SETTINGS_VERSION),
   ];
   if (query.data.provider) conditions.push(eq(ttsAudio.provider, query.data.provider));
@@ -575,17 +604,26 @@ articlesRouter.post("/:id/tts", async (c) => {
 
   const voice = resolveTtsVoice(provider, body.data.voice);
   const format = TTS_FORMATS[provider];
+  const source: TtsSource = body.data.source ?? "full";
 
-  const [cached] = await db.select().from(ttsAudio).where(ttsCacheConditions(id, userId, provider, voice, format));
+  const [cached] = await db
+    .select()
+    .from(ttsAudio)
+    .where(ttsCacheConditions(id, userId, provider, voice, format, source));
   if (cached) return c.json(toTtsAudioDTO(cached));
 
+  const articleText = await resolveTtsSourceText(userId, id, source, owned.contentText);
+  if (articleText == null) {
+    return c.json({ message: "No cached summary yet — generate a summary first, or narrate the full article" }, 422);
+  }
+
   try {
-    const result = await generateTts({ db, userId, provider, voice, articleText: owned.contentText });
+    const result = await generateTts({ db, userId, provider, voice, articleText });
 
     // Hashed rather than built from the raw voice string, which may contain
     // characters unsafe in a filename (and is otherwise untrusted input).
     const storageKey = `${createHash("sha256")
-      .update(`${id}:${userId}:${result.provider}:${result.voice}:${result.format}:${result.settingsVersion}`)
+      .update(`${id}:${userId}:${result.provider}:${result.voice}:${result.format}:${source}:${result.settingsVersion}`)
       .digest("hex")}.${result.format}`;
     await mkdir(audioStoragePath(), { recursive: true });
     await writeFile(path.join(audioStoragePath(), storageKey), result.audio);
@@ -598,6 +636,7 @@ articlesRouter.post("/:id/tts", async (c) => {
         provider: result.provider,
         voice: result.voice,
         format: result.format,
+        source,
         storageKey,
         durationSeconds: result.durationSeconds != null ? String(result.durationSeconds) : null,
         charCount: result.charCount,
@@ -605,14 +644,25 @@ articlesRouter.post("/:id/tts", async (c) => {
         settingsVersion: result.settingsVersion,
       })
       .onConflictDoNothing({
-        target: [ttsAudio.articleId, ttsAudio.userId, ttsAudio.provider, ttsAudio.voice, ttsAudio.format, ttsAudio.settingsVersion],
+        target: [
+          ttsAudio.articleId,
+          ttsAudio.userId,
+          ttsAudio.provider,
+          ttsAudio.voice,
+          ttsAudio.format,
+          ttsAudio.source,
+          ttsAudio.settingsVersion,
+        ],
       })
       .returning();
 
     // A concurrent request may have won the race and inserted first —
     // onConflictDoNothing then returns nothing, so fetch what's there.
     if (!row) {
-      [row] = await db.select().from(ttsAudio).where(ttsCacheConditions(id, userId, provider, voice, format));
+      [row] = await db
+        .select()
+        .from(ttsAudio)
+        .where(ttsCacheConditions(id, userId, provider, voice, format, source));
     }
     return c.json(toTtsAudioDTO(row));
   } catch (err) {

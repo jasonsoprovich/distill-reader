@@ -14,6 +14,7 @@ import { article } from "./article.js";
 
 export const summaryProvider = pgEnum("summary_provider", ["openai", "anthropic", "ollama"]);
 export const ttsProvider = pgEnum("tts_provider", ["elevenlabs", "piper"]);
+export const ttsSource = pgEnum("tts_source", ["full", "summary"]);
 
 export const summary = pgTable(
   "summary",
@@ -55,6 +56,10 @@ export const ttsAudio = pgTable(
     provider: ttsProvider("provider").notNull(),
     voice: text("voice").notNull(),
     format: text("format").notNull(),
+    // Full article vs. AI summary narration — distinct character counts (and
+    // per docs/COMPLIANCE.md, distinct copyright-exposure profile), so it's
+    // part of the cache key rather than an overwrite of the same row.
+    source: ttsSource("source").notNull().default("full"),
     storageKey: text("storage_key").notNull(),
     durationSeconds: numeric("duration_seconds"),
     charCount: integer("char_count").notNull(),
@@ -69,6 +74,7 @@ export const ttsAudio = pgTable(
       table.provider,
       table.voice,
       table.format,
+      table.source,
       table.settingsVersion,
     ),
   ],

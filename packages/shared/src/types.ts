@@ -14,6 +14,13 @@ export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 export const TTS_PROVIDERS = ["elevenlabs", "piper"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
 
+// What text gets narrated/speed-read: the full extracted article, or the
+// cached AI summary. Distinct token/character cost and, per docs/COMPLIANCE.md,
+// distinct copyright-exposure profile — kept as an explicit choice rather
+// than always defaulting to the full article.
+export const TTS_SOURCES = ["full", "summary"] as const;
+export type TtsSource = (typeof TTS_SOURCES)[number];
+
 export const CREDENTIAL_PROVIDERS = [...SUMMARY_PROVIDERS, ...TTS_PROVIDERS] as const;
 export type CredentialProviderKind = (typeof CREDENTIAL_PROVIDERS)[number];
 
@@ -135,6 +142,7 @@ export interface RsvpPrefs {
   pivotColor?: string;
   dimLevel?: number;
   punctuationPauseEnabled?: boolean;
+  source?: TtsSource;
 }
 
 // PLAN §7.3 — persisted TTS audio-player preferences. All fields optional,
@@ -144,6 +152,7 @@ export interface TtsPrefs {
   voice?: string;
   speed?: number;
   highlightFollowEnabled?: boolean;
+  source?: TtsSource;
 }
 
 export interface SettingsDTO {
@@ -169,6 +178,7 @@ export interface TtsAudioDTO {
   provider: TtsProviderKind;
   voice: string;
   format: string;
+  source: TtsSource;
   durationSeconds: number | null;
   charCount: number;
   timings: TtsTimings | null;

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PauseIcon, PlayIcon, RotateCcwIcon, RotateCwIcon, Volume2Icon } from "lucide-react";
 import { buildHighlightWords, findActiveWordIndex, TTS_PROVIDERS } from "@distill/shared";
-import type { TtsProviderKind } from "@distill/shared";
+import type { TtsProviderKind, TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import {
   useRequestTts,
   useSettings,
+  useSummary,
   useTtsAudio,
   useTtsVoices,
   useUpdatePlaybackPosition,
@@ -39,7 +40,14 @@ function formatTime(seconds: number): string {
 }
 
 export default function AudioPlayer({ articleId, initialPositionSeconds }: AudioPlayerProps) {
-  const { data: audio, isLoading } = useTtsAudio(articleId);
+  const [source, setSource] = useState<TtsSource>("full");
+  const { data: summary } = useSummary(articleId);
+  const hasSummary = Boolean(summary);
+  // Falls back to "full" if the user's saved preference is "summary" but no
+  // summary has been generated for this article yet (PLAN §7.2/§7.3).
+  const effectiveSource: TtsSource = source === "summary" && !hasSummary ? "full" : source;
+
+  const { data: audio, isLoading } = useTtsAudio(articleId, effectiveSource);
   const requestTts = useRequestTts();
   const updatePosition = useUpdatePlaybackPosition();
   const { data: settings } = useSettings();
@@ -70,16 +78,17 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
     if (prefs.voice) setVoice(prefs.voice);
     if (prefs.speed != null) setSpeed(prefs.speed);
     if (prefs.highlightFollowEnabled != null) setHighlightFollowEnabled(prefs.highlightFollowEnabled);
+    if (prefs.source) setSource(prefs.source);
   }, [settings]);
 
   useEffect(() => {
     if (!loadedPrefsRef.current || !provider) return;
     const timer = setTimeout(() => {
-      updateSettings.mutate({ ttsPrefs: { provider, voice, speed, highlightFollowEnabled } });
+      updateSettings.mutate({ ttsPrefs: { provider, voice, speed, highlightFollowEnabled, source } });
     }, PERSIST_PREFS_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, voice, speed, highlightFollowEnabled]);
+  }, [provider, voice, speed, highlightFollowEnabled, source]);
 
   // PLAN §7.3 — karaoke-style highlight-follow, built from the timings
   // ElevenLabs returns (null for Piper, which degrades to plain playback).
@@ -163,6 +172,17 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
           ))}
         </select>
       )}
+      <select
+        className={selectClass()}
+        value={source}
+        title={hasSummary ? undefined : "Generate a summary first to narrate it instead of the full article"}
+        onChange={(e) => setSource(e.target.value as TtsSource)}
+      >
+        <option value="full">Full article</option>
+        <option value="summary" disabled={!hasSummary}>
+          AI summary
+        </option>
+      </select>
     </div>
   );
 
@@ -174,7 +194,7 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
           variant="outline"
           size="sm"
           className="self-start"
-          onClick={() => requestTts.mutate({ articleId, provider, voice })}
+          onClick={() => requestTts.mutate({ articleId, provider, voice, source: effectiveSource })}
           disabled={requestTts.isPending}
         >
           <Volume2Icon className="size-4" />

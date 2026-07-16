@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CREDENTIAL_PROVIDERS, FEED_KINDS, SUMMARY_PROVIDERS, TTS_PROVIDERS } from "./types.js";
+import { CREDENTIAL_PROVIDERS, FEED_KINDS, SUMMARY_PROVIDERS, TTS_PROVIDERS, TTS_SOURCES } from "./types.js";
 
 export const previewFeedSchema = z.object({
   url: z.url(),
@@ -90,6 +90,7 @@ export const rsvpPrefsSchema = z.object({
   pivotColor: z.string().min(1).max(30).optional(),
   dimLevel: z.number().min(0).max(1).optional(),
   punctuationPauseEnabled: z.boolean().optional(),
+  source: z.enum(TTS_SOURCES).optional(),
 });
 export type RsvpPrefsInput = z.infer<typeof rsvpPrefsSchema>;
 
@@ -100,6 +101,7 @@ export const ttsPrefsSchema = z.object({
   voice: z.string().min(1).max(200).optional(),
   speed: z.number().min(0.5).max(2).optional(),
   highlightFollowEnabled: z.boolean().optional(),
+  source: z.enum(TTS_SOURCES).optional(),
 });
 export type TtsPrefsInput = z.infer<typeof ttsPrefsSchema>;
 
@@ -123,6 +125,7 @@ export type RequestSummaryInput = z.infer<typeof requestSummarySchema>;
 export const requestTtsSchema = z.object({
   provider: z.enum(TTS_PROVIDERS).optional(),
   voice: z.string().min(1).max(200).optional(),
+  source: z.enum(TTS_SOURCES).optional(),
 });
 export type RequestTtsInput = z.infer<typeof requestTtsSchema>;
 

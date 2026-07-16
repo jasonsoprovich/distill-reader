@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PauseIcon, PlayIcon, RotateCcwIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { computeOrpIndex, tokenizeForRsvp, wordDelayMultiplier } from "@distill/shared";
+import type { TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { useSettings, useUpdateSettings } from "@/lib/hooks";
+import { useSettings, useSummary, useUpdateSettings } from "@/lib/hooks";
 
 interface RsvpReaderProps {
-  text: string;
+  articleId: string;
+  fullText: string;
   onExit: () => void;
 }
 
@@ -22,8 +24,9 @@ const REWIND_WORDS = 10;
 // Debounce so dragging a slider doesn't fire a settings write per tick.
 const PERSIST_DELAY_MS = 600;
 
-export default function RsvpReader({ text, onExit }: RsvpReaderProps) {
-  const words = useMemo(() => tokenizeForRsvp(text), [text]);
+export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderProps) {
+  const { data: summary } = useSummary(articleId);
+  const hasSummary = Boolean(summary);
 
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
@@ -35,9 +38,22 @@ export default function RsvpReader({ text, onExit }: RsvpReaderProps) {
   const [pivotColor, setPivotColor] = useState(DEFAULT_PIVOT_COLOR);
   const [dimLevel, setDimLevel] = useState(DEFAULT_DIM_LEVEL);
   const [punctuationPauseEnabled, setPunctuationPauseEnabled] = useState(DEFAULT_PUNCTUATION_PAUSE_ENABLED);
+  const [source, setSource] = useState<TtsSource>("full");
+
+  // Falls back to "full" if the saved preference is "summary" but no summary
+  // has been generated for this article yet (mirrors AudioPlayer, PLAN §8.4).
+  const effectiveSource: TtsSource = source === "summary" && !hasSummary ? "full" : source;
+  const text = effectiveSource === "summary" && summary ? summary.content : fullText;
+  const words = useMemo(() => tokenizeForRsvp(text), [text]);
 
   const [index, setIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
+
+  // Re-tokenizing on a source switch mid-read would otherwise leave `index`
+  // pointing at the wrong word (or past the end) in the new word list.
+  useEffect(() => {
+    setIndex(0);
+  }, [text]);
 
   // Load saved prefs once, the first time settings arrive — later refetches
   // (e.g. from an unrelated mutation elsewhere) must not stomp live edits.
@@ -51,20 +67,21 @@ export default function RsvpReader({ text, onExit }: RsvpReaderProps) {
     if (prefs.pivotColor) setPivotColor(prefs.pivotColor);
     if (prefs.dimLevel != null) setDimLevel(prefs.dimLevel);
     if (prefs.punctuationPauseEnabled != null) setPunctuationPauseEnabled(prefs.punctuationPauseEnabled);
+    if (prefs.source) setSource(prefs.source);
   }, [settings]);
 
   useEffect(() => {
     if (!loadedPrefsRef.current) return;
     const timer = setTimeout(() => {
       updateSettings.mutate({
-        rsvpPrefs: { wpm, wordColor, backgroundColor, pivotColor, dimLevel, punctuationPauseEnabled },
+        rsvpPrefs: { wpm, wordColor, backgroundColor, pivotColor, dimLevel, punctuationPauseEnabled, source },
       });
     }, PERSIST_DELAY_MS);
     return () => clearTimeout(timer);
     // updateSettings is intentionally omitted — its identity isn't stable
     // across renders and including it would re-arm the timer needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wpm, wordColor, backgroundColor, pivotColor, dimLevel, punctuationPauseEnabled]);
+  }, [wpm, wordColor, backgroundColor, pivotColor, dimLevel, punctuationPauseEnabled, source]);
 
   const isDone = words.length > 0 && index >= words.length;
 
@@ -224,6 +241,23 @@ export default function RsvpReader({ text, onExit }: RsvpReaderProps) {
               onChange={(e) => setBackgroundColor(e.target.value)}
               className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
             />
+          </label>
+
+          <label
+            className="col-span-2 flex items-center gap-3"
+            title={hasSummary ? undefined : "Generate a summary first to speed-read it instead of the full article"}
+          >
+            <span className="w-24 shrink-0">Read</span>
+            <select
+              className="h-8 flex-1 rounded-md border border-neutral-700 bg-transparent px-2 text-sm outline-none"
+              value={source}
+              onChange={(e) => setSource(e.target.value as TtsSource)}
+            >
+              <option value="full">Full article</option>
+              <option value="summary" disabled={!hasSummary}>
+                AI summary
+              </option>
+            </select>
           </label>
 
           <label className="flex items-center gap-2">
