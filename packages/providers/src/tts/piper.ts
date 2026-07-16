@@ -16,17 +16,30 @@ import { TtsProviderError, type TtsSynthesizeRequest, type TtsSynthesizeResult, 
 type PiperVoicesResponse = Record<string, unknown>;
 
 // Piper's base_url is a self-hosted sidecar address, often on a private
-// network — allowlisted through safeFetch's SSRF check only when it matches
-// the deploy operator's configured PIPER_BASE_URL (PLAN §10.2's "deliberate,
-// configured exception"), same pattern as Ollama.
-function trustedPiperHosts(): string[] {
+// network — allowlisted through safeFetch's SSRF check as a deliberate,
+// configured exception (PLAN §10.2), same pattern as Ollama. Trust both the
+// deploy operator's PIPER_BASE_URL env var *and* the requesting user's own
+// stored credential.baseUrl: in this single-user app only the account owner
+// can set that credential (via Settings), so it carries the same trust as
+// the env var — and trusting it directly is what actually fixes requests,
+// since env var and credential are two independently-typed values that must
+// otherwise match hostname-for-hostname or safeFetch blocks the request.
+function trustedPiperHosts(root: string): string[] {
+  const hosts = new Set<string>();
   const configured = process.env.PIPER_BASE_URL;
-  if (!configured) return [];
-  try {
-    return [new URL(configured).hostname];
-  } catch {
-    return [];
+  if (configured) {
+    try {
+      hosts.add(new URL(configured).hostname);
+    } catch {
+      // ignore malformed env var
+    }
   }
+  try {
+    hosts.add(new URL(root).hostname);
+  } catch {
+    // ignore malformed root; safeFetch's own URL parsing will surface the error
+  }
+  return [...hosts];
 }
 
 export function createPiperClient(baseUrl: string): TtsProviderClient {
@@ -44,7 +57,7 @@ export function createPiperClient(baseUrl: string): TtsProviderClient {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           timeoutMs: TTS_REQUEST_TIMEOUT_MS,
-          allowedHosts: trustedPiperHosts(),
+          allowedHosts: trustedPiperHosts(root),
           body: JSON.stringify({ text, voice, length_scale: lengthScale }),
         });
       } catch (err) {
@@ -67,7 +80,7 @@ export function createPiperClient(baseUrl: string): TtsProviderClient {
       try {
         response = await safeFetch(`${root}/voices`, {
           timeoutMs: TTS_REQUEST_TIMEOUT_MS,
-          allowedHosts: trustedPiperHosts(),
+          allowedHosts: trustedPiperHosts(root),
         });
       } catch (err) {
         if (isTimeoutError(err)) throw new TtsProviderError("piper", "timeout", "Piper request timed out");

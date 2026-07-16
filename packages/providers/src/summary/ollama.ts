@@ -8,17 +8,30 @@ interface OllamaChatResponse {
 }
 
 // Ollama's base_url is a self-hosted sidecar address, often on a private
-// network — allowlisted through safeFetch's SSRF check only when it matches
-// the deploy operator's configured OLLAMA_BASE_URL (PLAN §10.2's "deliberate,
-// configured exception"), not whatever a credential row happens to contain.
-function trustedOllamaHosts(): string[] {
+// network — allowlisted through safeFetch's SSRF check as a deliberate,
+// configured exception (PLAN §10.2), same pattern as Piper. Trust both the
+// deploy operator's OLLAMA_BASE_URL env var *and* the requesting user's own
+// stored credential.baseUrl: in this single-user app only the account owner
+// can set that credential (via Settings), so it carries the same trust as
+// the env var — and trusting it directly avoids requiring the two
+// independently-typed values to match hostname-for-hostname before requests
+// work (see the Piper fix for the same issue).
+function trustedOllamaHosts(root: string): string[] {
+  const hosts = new Set<string>();
   const configured = process.env.OLLAMA_BASE_URL;
-  if (!configured) return [];
-  try {
-    return [new URL(configured).hostname];
-  } catch {
-    return [];
+  if (configured) {
+    try {
+      hosts.add(new URL(configured).hostname);
+    } catch {
+      // ignore malformed env var
+    }
   }
+  try {
+    hosts.add(new URL(root).hostname);
+  } catch {
+    // ignore malformed root; safeFetch's own URL parsing will surface the error
+  }
+  return [...hosts];
 }
 
 export function createOllamaClient(baseUrl: string): SummaryProviderClient {
@@ -33,7 +46,7 @@ export function createOllamaClient(baseUrl: string): SummaryProviderClient {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           timeoutMs: SUMMARY_REQUEST_TIMEOUT_MS,
-          allowedHosts: trustedOllamaHosts(),
+          allowedHosts: trustedOllamaHosts(root),
           body: JSON.stringify({
             model,
             stream: false,
