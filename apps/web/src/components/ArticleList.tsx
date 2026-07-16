@@ -1,4 +1,4 @@
-import { CheckCheckIcon, StarIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, CheckCheckIcon, StarIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useArticles, useClearArticle, useReadAll, useStarArticle } from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
@@ -8,6 +8,8 @@ interface ArticleListProps {
   selection: Selection;
   selectedArticleId: string | null;
   onSelectArticle: (id: string) => void;
+  onBack?: () => void;
+  className?: string;
 }
 
 function formatDate(iso: string | null): string {
@@ -15,7 +17,13 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function ArticleList({ selection, selectedArticleId, onSelectArticle }: ArticleListProps) {
+export default function ArticleList({
+  selection,
+  selectedArticleId,
+  onSelectArticle,
+  onBack,
+  className,
+}: ArticleListProps) {
   const { feedId, tagId, view } = selectionToArticlesParams(selection);
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useArticles(feedId, tagId, view);
   const starArticle = useStarArticle();
@@ -28,9 +36,22 @@ export default function ArticleList({ selection, selectedArticleId, onSelectArti
   const canMarkAllRead = !(selection.kind === "view" && selection.view === "cleared");
 
   return (
-    <section className="flex w-96 shrink-0 flex-col border-r border-neutral-200 bg-white">
+    <section className={cn("flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white md:w-96", className)}>
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-        <span className="text-xs font-medium text-neutral-500">Articles</span>
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 md:hidden"
+              title="Back to feeds"
+              onClick={onBack}
+            >
+              <ArrowLeftIcon className="size-4 text-neutral-500" />
+            </Button>
+          )}
+          <span className="text-xs font-medium text-neutral-500">Articles</span>
+        </div>
         {canMarkAllRead && (
           <Button
             variant="ghost"
@@ -93,8 +114,11 @@ export default function ArticleList({ selection, selectedArticleId, onSelectArti
 
               <div
                 className={cn(
-                  "absolute right-2 top-2 items-center gap-0.5",
-                  article.starred ? "flex" : "hidden group-hover:flex",
+                  // Always visible on touch/mobile (no hover to reveal them
+                  // there); desktop keeps the hover-to-reveal behavior
+                  // unless the article is starred.
+                  "absolute right-2 top-2 flex items-center gap-0.5",
+                  !article.starred && "md:hidden md:group-hover:flex",
                 )}
               >
                 <Button

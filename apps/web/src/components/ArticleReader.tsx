@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckIcon, SparklesIcon, StarIcon, Trash2Icon, ZapIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, SparklesIcon, StarIcon, Trash2Icon, ZapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AudioPlayer from "@/components/AudioPlayer";
 import RsvpReader from "@/components/RsvpReader";
@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 
 interface ArticleReaderProps {
   articleId: string | null;
+  onBack?: () => void;
+  className?: string;
 }
 
 // Debounced so a quick skim-and-move-on doesn't mark every article read.
@@ -73,7 +75,7 @@ function SummaryPanel({ articleId, isDarkTheme }: { articleId: string; isDarkThe
   );
 }
 
-export default function ArticleReader({ articleId }: ArticleReaderProps) {
+export default function ArticleReader({ articleId, onBack, className }: ArticleReaderProps) {
   const { data: article, isLoading } = useArticle(articleId);
   const { data: settings } = useSettings();
   const markRead = useMarkRead();
@@ -99,7 +101,7 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
 
   if (!articleId) {
     return (
-      <main className="flex-1 overflow-y-auto" style={{ backgroundColor: theme.background }}>
+      <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
         <div className="p-6 text-sm" style={{ color: theme.muted }}>
           Select an article to read it here.
         </div>
@@ -109,7 +111,7 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
 
   if (isLoading || !article) {
     return (
-      <main className="flex-1 overflow-y-auto" style={{ backgroundColor: theme.background }}>
+      <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
         <div className="p-6 text-sm" style={{ color: theme.muted }}>
           Loading…
         </div>
@@ -121,12 +123,25 @@ export default function ArticleReader({ articleId }: ArticleReaderProps) {
   const isCleared = Boolean(article.clearedAt);
 
   return (
-    <main className="flex-1 overflow-y-auto" style={{ backgroundColor: theme.background }}>
+    <main className={cn("flex-1 overflow-y-auto", className)} style={{ backgroundColor: theme.background }}>
       <article className="mx-auto max-w-[66ch] px-6 py-8" style={{ fontSize }}>
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold" style={{ color: theme.color }}>
-            {article.title}
-          </h1>
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mt-1 size-8 shrink-0 md:hidden"
+                title="Back to articles"
+                onClick={onBack}
+              >
+                <ArrowLeftIcon className="size-4" style={{ color: theme.muted }} />
+              </Button>
+            )}
+            <h1 className="min-w-0 text-2xl font-semibold" style={{ color: theme.color }}>
+              {article.title}
+            </h1>
+          </div>
           <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"

@@ -11,6 +11,7 @@ import type { ArticleView } from "@distill/shared";
 interface FeedSidebarProps {
   selection: Selection;
   onSelect: (selection: Selection) => void;
+  className?: string;
 }
 
 const SMART_VIEWS: { view: ArticleView; label: string }[] = [
@@ -26,13 +27,13 @@ function navButtonClass(active: boolean) {
   );
 }
 
-export default function FeedSidebar({ selection, onSelect }: FeedSidebarProps) {
+export default function FeedSidebar({ selection, onSelect, className }: FeedSidebarProps) {
   const { data: feeds = [], isLoading } = useFeeds();
   const { data: tags = [] } = useTags();
   const pollFeed = usePollFeed();
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-white">
+    <aside className={cn("flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white md:w-64", className)}>
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <span className="text-sm font-semibold">Distill</span>
         <div className="flex items-center gap-3">
