@@ -14,7 +14,7 @@
     "@distill/db": "workspace:*",
     "@distill/extract": "workspace:*",
     "@distill/shared": "workspace:*",
-    "drizzle-orm": "^0.44.6"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

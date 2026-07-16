@@ -14,7 +14,7 @@
     "@distill/extract": "workspace:*",
     "@distill/providers": "workspace:*",
     "@distill/shared": "workspace:*",
-    "drizzle-orm": "^0.44.6",
+    "drizzle-orm": "^0.45.2",
     "node-cron": "^4.2.1"
   },
   "devDependencies": {

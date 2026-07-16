@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  audit:
+    name: Dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # PLAN §10.6 — gated on high/critical only. One accepted moderate
+      # finding remains as of writing: esbuild's dev-server CORS issue
+      # (GHSA-67mh-4wv8-2f99), pulled in transitively via drizzle-kit's
+      # deprecated @esbuild-kit/esm-loader — a dev-only CLI tool dependency,
+      # not part of the running app, with no direct upgrade path until
+      # drizzle-kit drops that deprecated sub-dependency upstream.
+      - run: pnpm audit --audit-level=high
+
+  build:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run test
