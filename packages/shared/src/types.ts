@@ -155,10 +155,19 @@ export interface TtsPrefs {
   source?: TtsSource;
 }
 
+// PLAN §8.3 — built-in reader themes, persisted in user_settings.reader_theme.
+export const READER_THEME_NAMES = ["light", "sepia", "dark", "high-contrast"] as const;
+export type ReaderThemeName = (typeof READER_THEME_NAMES)[number];
+
+export interface ReaderTheme {
+  name?: ReaderThemeName;
+  fontSize?: number;
+}
+
 export interface SettingsDTO {
   defaultRetentionReadDays: number;
   defaultRetentionUnreadDays: number;
-  readerTheme: Record<string, unknown>;
+  readerTheme: ReaderTheme;
   rsvpPrefs: RsvpPrefs;
   ttsPrefs: TtsPrefs;
   defaultSummaryProvider: SummaryProviderKind | null;

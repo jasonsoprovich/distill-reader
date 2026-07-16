@@ -12,6 +12,7 @@ import {
   useUpdatePlaybackPosition,
   useUpdateSettings,
 } from "@/lib/hooks";
+import { DARK_READER_THEMES, DEFAULT_READER_THEME_NAME } from "@/lib/reader-theme";
 import { cn } from "@/lib/utils";
 
 interface AudioPlayerProps {
@@ -54,6 +55,7 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
   const updateSettings = useUpdateSettings();
   const loadedPrefsRef = useRef(false);
   const resumedRef = useRef(false);
+  const isDarkTheme = DARK_READER_THEMES.has(settings?.readerTheme.name ?? DEFAULT_READER_THEME_NAME);
 
   const [provider, setProvider] = useState<TtsProviderKind | undefined>(undefined);
   const [voice, setVoice] = useState<string | undefined>(undefined);
@@ -205,7 +207,12 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-3 rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3">
+    <div
+      className={cn(
+        "mt-4 flex flex-col gap-3 rounded-md border px-4 py-3",
+        isDarkTheme ? "border-neutral-700 bg-neutral-800" : "border-neutral-200 bg-neutral-50",
+      )}
+    >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- narration, no track to caption */}
       <audio
         ref={audioRef}
@@ -289,7 +296,12 @@ export default function AudioPlayer({ articleId, initialPositionSeconds }: Audio
       </div>
 
       {highlightFollowEnabled && words.length > 0 && (
-        <div className="max-h-40 overflow-y-auto rounded border border-neutral-200 bg-white px-3 py-2 text-sm leading-relaxed text-neutral-700">
+        <div
+          className={cn(
+            "max-h-40 overflow-y-auto rounded border px-3 py-2 text-sm leading-relaxed",
+            isDarkTheme ? "border-neutral-700 bg-neutral-900 text-neutral-300" : "border-neutral-200 bg-white text-neutral-700",
+          )}
+        >
           {words.map((word, i) => (
             <span
               key={i}

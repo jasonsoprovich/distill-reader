@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CREDENTIAL_PROVIDERS, FEED_KINDS, SUMMARY_PROVIDERS, TTS_PROVIDERS, TTS_SOURCES } from "./types.js";
+import { CREDENTIAL_PROVIDERS, FEED_KINDS, READER_THEME_NAMES, SUMMARY_PROVIDERS, TTS_PROVIDERS, TTS_SOURCES } from "./types.js";
 
 export const previewFeedSchema = z.object({
   url: z.url(),
@@ -105,10 +105,18 @@ export const ttsPrefsSchema = z.object({
 });
 export type TtsPrefsInput = z.infer<typeof ttsPrefsSchema>;
 
+// PLAN §8.3 — persisted as a merge-patch into user_settings.reader_theme
+// (jsonb), same all-optional shape as rsvpPrefsSchema/ttsPrefsSchema.
+export const readerThemeSchema = z.object({
+  name: z.enum(READER_THEME_NAMES).optional(),
+  fontSize: z.number().min(14).max(24).optional(),
+});
+export type ReaderThemeInput = z.infer<typeof readerThemeSchema>;
+
 export const patchSettingsSchema = z.object({
   defaultRetentionReadDays: z.number().int().positive().optional(),
   defaultRetentionUnreadDays: z.number().int().positive().optional(),
-  readerTheme: z.record(z.string(), z.unknown()).optional(),
+  readerTheme: readerThemeSchema.optional(),
   rsvpPrefs: rsvpPrefsSchema.optional(),
   ttsPrefs: ttsPrefsSchema.optional(),
   defaultSummaryProvider: z.enum(SUMMARY_PROVIDERS).nullable().optional(),
