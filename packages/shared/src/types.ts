@@ -14,6 +14,18 @@ export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 export const TTS_PROVIDERS = ["elevenlabs", "piper"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
 
+// ElevenLabs' selectable TTS models — Piper has no model concept, so its
+// picker is voice-only. eleven_turbo_v2_5 is omitted: ElevenLabs' own docs
+// mark it deprecated in favor of eleven_flash_v2_5, functionally equivalent
+// with lower latency. Single source of truth for both the server (which
+// falls back to the first entry as its default) and the picker UI.
+export const ELEVENLABS_MODELS = [
+  { id: "eleven_multilingual_v2", label: "Multilingual v2 — highest quality, long-form" },
+  { id: "eleven_flash_v2_5", label: "Flash v2.5 — fastest, lowest cost" },
+  { id: "eleven_v3", label: "v3 — most expressive" },
+] as const;
+export type ElevenLabsModelId = (typeof ELEVENLABS_MODELS)[number]["id"];
+
 // What text gets narrated/speed-read: the full extracted article, or the
 // cached AI summary. Distinct token/character cost and, per docs/COMPLIANCE.md,
 // distinct copyright-exposure profile — kept as an explicit choice rather
@@ -158,6 +170,8 @@ export interface RsvpPrefs {
 export interface TtsPrefs {
   provider?: TtsProviderKind;
   voice?: string;
+  // Only meaningful for providers with a model concept (ElevenLabs).
+  model?: string;
   speed?: number;
   highlightFollowEnabled?: boolean;
   source?: TtsSource;
@@ -200,6 +214,9 @@ export interface TtsTimings {
 export interface TtsAudioDTO {
   provider: TtsProviderKind;
   voice: string;
+  // Only meaningful for providers with a model concept (ElevenLabs); null
+  // for Piper.
+  model: string | null;
   format: string;
   source: TtsSource;
   durationSeconds: number | null;

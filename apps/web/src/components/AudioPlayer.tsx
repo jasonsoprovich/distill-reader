@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PauseIcon, PlayIcon, RotateCcwIcon, RotateCwIcon, Volume2Icon } from "lucide-react";
-import { buildHighlightWords, findActiveWordIndex, TTS_PROVIDERS } from "@distill/shared";
+import { buildHighlightWords, ELEVENLABS_MODELS, findActiveWordIndex, TTS_PROVIDERS } from "@distill/shared";
 import type { TtsProviderKind, TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -84,6 +84,7 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
 
   const [provider, setProvider] = useState<TtsProviderKind | undefined>(undefined);
   const [voice, setVoice] = useState<string | undefined>(undefined);
+  const [model, setModel] = useState<string | undefined>(undefined);
   const [speed, setSpeed] = useState(1);
   const [highlightFollowEnabled, setHighlightFollowEnabled] = useState(false);
 
@@ -103,6 +104,7 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
     const prefs = settings.ttsPrefs;
     if (prefs.provider) setProvider(prefs.provider);
     if (prefs.voice) setVoice(prefs.voice);
+    if (prefs.model) setModel(prefs.model);
     if (prefs.speed != null) setSpeed(prefs.speed);
     if (prefs.highlightFollowEnabled != null) setHighlightFollowEnabled(prefs.highlightFollowEnabled);
     if (prefs.source) setSource(prefs.source);
@@ -111,11 +113,11 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
   useEffect(() => {
     if (!dirtyPrefsRef.current) return;
     const timer = setTimeout(() => {
-      updateSettings.mutate({ ttsPrefs: { provider, voice, speed, highlightFollowEnabled, source } });
+      updateSettings.mutate({ ttsPrefs: { provider, voice, model, speed, highlightFollowEnabled, source } });
     }, PERSIST_PREFS_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, voice, speed, highlightFollowEnabled, source]);
+  }, [provider, voice, model, speed, highlightFollowEnabled, source]);
 
   // PLAN §7.3 — karaoke-style highlight-follow, built from the timings
   // ElevenLabs returns (null for Piper, which degrades to plain playback).
@@ -176,11 +178,17 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
     dirtyPrefsRef.current = true;
     setProvider(next);
     setVoice(undefined);
+    setModel(undefined);
   }
 
   function pickVoice(next: string | undefined) {
     dirtyPrefsRef.current = true;
     setVoice(next);
+  }
+
+  function pickModel(next: string | undefined) {
+    dirtyPrefsRef.current = true;
+    setModel(next);
   }
 
   function pickSource(next: TtsSource) {
@@ -238,6 +246,21 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
               </option>
             ))
           )}
+        </select>
+      )}
+      {effectiveProvider === "elevenlabs" && (
+        <select
+          className={selectClass()}
+          value={model ?? ""}
+          title="Model"
+          onChange={(e) => pickModel(e.target.value || undefined)}
+        >
+          <option value="">Default model</option>
+          {ELEVENLABS_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
         </select>
       )}
       <select
@@ -306,7 +329,7 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
                 variant="outline"
                 size="sm"
                 className="border-[var(--surface-border)] bg-[var(--surface-hover)] text-[var(--surface-fg)] hover:bg-[var(--surface-active)]"
-                onClick={() => requestTts.mutate({ articleId, provider, voice, source: effectiveSource })}
+                onClick={() => requestTts.mutate({ articleId, provider, voice, model, source: effectiveSource })}
                 disabled={requestTts.isPending}
               >
                 <Volume2Icon className="size-4" />
@@ -320,7 +343,8 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
           ) : (
             <>
               <span className="text-xs font-medium text-[var(--surface-muted)]">
-                {audio.provider} {audio.voice} · {audio.charCount.toLocaleString()} characters
+                {audio.provider} {audio.voice}
+                {audio.model ? ` · ${audio.model}` : ""} · {audio.charCount.toLocaleString()} characters
               </span>
 
               <div className="flex items-center gap-2">

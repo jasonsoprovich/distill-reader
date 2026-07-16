@@ -119,8 +119,10 @@ export const api = {
       throw err;
     }
   },
-  requestTts: (articleId: string, opts: { provider?: TtsProviderKind; voice?: string; source?: TtsSource } = {}) =>
-    apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts`, { method: "POST", body: JSON.stringify(opts) }),
+  requestTts: (
+    articleId: string,
+    opts: { provider?: TtsProviderKind; voice?: string; model?: string; source?: TtsSource } = {},
+  ) => apiFetch<TtsAudioDTO>(`/articles/${articleId}/tts`, { method: "POST", body: JSON.stringify(opts) }),
   updatePlaybackPosition: (articleId: string, positionSeconds: number) =>
     apiFetch<{ positionSeconds: number | null }>(`/articles/${articleId}/playback-position`, {
       method: "POST",

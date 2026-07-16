@@ -5,7 +5,13 @@ import { chunkText } from "../summary/chunk.js";
 import type { ResolvedCredential } from "../summary/types.js";
 import { concatMp3, concatWav } from "./audio-concat.js";
 import { createElevenLabsClient } from "./elevenlabs.js";
-import { DEFAULT_TTS_VOICES, TTS_CHUNK_CHARS, TTS_MAX_SINGLE_PASS_CHARS, TTS_SETTINGS_VERSION } from "./models.js";
+import {
+  DEFAULT_TTS_MODELS,
+  DEFAULT_TTS_VOICES,
+  TTS_CHUNK_CHARS,
+  TTS_MAX_SINGLE_PASS_CHARS,
+  TTS_SETTINGS_VERSION,
+} from "./models.js";
 import { createPiperClient } from "./piper.js";
 import { TtsProviderError, type TtsProviderClient, type TtsSynthesizeResult, type TtsVoiceInfo } from "./types.js";
 
@@ -32,12 +38,15 @@ export interface GenerateTtsOptions {
   provider: TtsProviderKind;
   articleText: string;
   voice?: string;
+  model?: string;
   speed?: number;
 }
 
 export interface GenerateTtsResult {
   provider: TtsProviderKind;
   voice: string;
+  // Only set for providers with a model concept (ElevenLabs); null for Piper.
+  model: string | null;
   format: string;
   audio: Buffer;
   durationSeconds: number | null;
@@ -49,6 +58,13 @@ export interface GenerateTtsResult {
 /** The voice that will be used for `provider` absent an explicit override — needed by callers before generation, to compute the cache key. */
 export function resolveTtsVoice(provider: TtsProviderKind, requestedVoice?: string): string {
   return requestedVoice || DEFAULT_TTS_VOICES[provider];
+}
+
+/** The model that will be used for `provider` absent an explicit override — null for providers with no model concept (Piper). */
+export function resolveTtsModel(provider: TtsProviderKind, requestedModel?: string): string | null {
+  const fallback = DEFAULT_TTS_MODELS[provider];
+  if (!fallback) return null;
+  return requestedModel || fallback;
 }
 
 // Combines each chunk's per-character timings into one timeline, offsetting
@@ -91,6 +107,7 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
 
   const client = createClient(opts.provider, credential);
   const voice = resolveTtsVoice(opts.provider, opts.voice);
+  const model = resolveTtsModel(opts.provider, opts.model);
   const speed = opts.speed ?? 1;
 
   const chunks =
@@ -100,7 +117,7 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
 
   const results: TtsSynthesizeResult[] = [];
   for (const chunk of chunks) {
-    results.push(await client.synthesize({ text: chunk, voice, speed }));
+    results.push(await client.synthesize({ text: chunk, voice, speed, model: model ?? undefined }));
   }
 
   const format = results[0].format;
@@ -120,6 +137,7 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
   return {
     provider: opts.provider,
     voice,
+    model,
     format,
     audio,
     durationSeconds,

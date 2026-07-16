@@ -55,6 +55,12 @@ export const ttsAudio = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     provider: ttsProvider("provider").notNull(),
     voice: text("voice").notNull(),
+    // Only meaningful for providers with a model concept (ElevenLabs) — ""
+    // for Piper, which has none. NOT NULL with a "" default rather than
+    // nullable: Postgres unique constraints treat every NULL as distinct
+    // from every other NULL, so a nullable column here would silently defeat
+    // onConflictDoNothing's dedup for Piper (whose model is always empty).
+    model: text("model").notNull().default(""),
     format: text("format").notNull(),
     // Full article vs. AI summary narration — distinct character counts (and
     // per docs/COMPLIANCE.md, distinct copyright-exposure profile), so it's
@@ -73,6 +79,7 @@ export const ttsAudio = pgTable(
       table.userId,
       table.provider,
       table.voice,
+      table.model,
       table.format,
       table.source,
       table.settingsVersion,

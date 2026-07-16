@@ -1,4 +1,4 @@
-import type { TtsProviderKind } from "@distill/shared";
+import { ELEVENLABS_MODELS, type TtsProviderKind } from "@distill/shared";
 
 // "Rachel" — ElevenLabs' long-standing stock voice id; Piper's default
 // depends on whichever voice model the operator's sidecar has installed, so
@@ -7,6 +7,14 @@ import type { TtsProviderKind } from "@distill/shared";
 export const DEFAULT_TTS_VOICES: Record<TtsProviderKind, string> = {
   elevenlabs: "21m00Tcm4TlvDq8ikWAM",
   piper: "en_US-lessac-medium",
+};
+
+// ELEVENLABS_MODELS itself lives in @distill/shared (PLAN §7.4) so the
+// frontend picker can import it without pulling in this server-only
+// package — this just derives the server's default from its first entry,
+// one source of truth either way.
+export const DEFAULT_TTS_MODELS: Partial<Record<TtsProviderKind, string>> = {
+  elevenlabs: ELEVENLABS_MODELS[0].id,
 };
 
 // Each provider always synthesizes to one fixed format (mp3 for ElevenLabs,

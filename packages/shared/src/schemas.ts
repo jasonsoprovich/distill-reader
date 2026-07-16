@@ -107,6 +107,7 @@ export type RsvpPrefsInput = z.infer<typeof rsvpPrefsSchema>;
 export const ttsPrefsSchema = z.object({
   provider: z.enum(TTS_PROVIDERS).optional(),
   voice: z.string().min(1).max(200).optional(),
+  model: z.string().min(1).max(200).optional(),
   speed: z.number().min(0.5).max(2).optional(),
   highlightFollowEnabled: z.boolean().optional(),
   source: z.enum(TTS_SOURCES).optional(),
@@ -142,6 +143,7 @@ export type RequestSummaryInput = z.infer<typeof requestSummarySchema>;
 export const requestTtsSchema = z.object({
   provider: z.enum(TTS_PROVIDERS).optional(),
   voice: z.string().min(1).max(200).optional(),
+  model: z.string().min(1).max(200).optional(),
   source: z.enum(TTS_SOURCES).optional(),
 });
 export type RequestTtsInput = z.infer<typeof requestTtsSchema>;

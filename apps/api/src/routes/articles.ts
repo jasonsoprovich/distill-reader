@@ -7,6 +7,7 @@ import {
   generateSummary,
   generateTts,
   resolveModel,
+  resolveTtsModel,
   resolveTtsVoice,
   SUMMARY_PROMPT_VERSION,
   SummaryProviderError,
@@ -481,6 +482,7 @@ function toTtsAudioDTO(row: typeof ttsAudio.$inferSelect): TtsAudioDTO {
   return {
     provider: row.provider,
     voice: row.voice,
+    model: row.model || null,
     format: row.format,
     source: row.source,
     durationSeconds: row.durationSeconds != null ? Number(row.durationSeconds) : null,
@@ -523,6 +525,7 @@ function ttsCacheConditions(
   userId: string,
   provider: TtsProviderKind,
   voice: string,
+  model: string | null,
   format: string,
   source: TtsSource,
 ) {
@@ -531,6 +534,7 @@ function ttsCacheConditions(
     eq(ttsAudio.userId, userId),
     eq(ttsAudio.provider, provider),
     eq(ttsAudio.voice, voice),
+    eq(ttsAudio.model, model ?? ""),
     eq(ttsAudio.format, format),
     eq(ttsAudio.source, source),
     eq(ttsAudio.settingsVersion, TTS_SETTINGS_VERSION),
@@ -574,6 +578,7 @@ articlesRouter.get("/:id/tts", async (c) => {
   ];
   if (query.data.provider) conditions.push(eq(ttsAudio.provider, query.data.provider));
   if (query.data.voice) conditions.push(eq(ttsAudio.voice, query.data.voice));
+  if (query.data.model) conditions.push(eq(ttsAudio.model, query.data.model));
 
   const [row] = await db.select().from(ttsAudio).where(and(...conditions)).orderBy(desc(ttsAudio.createdAt)).limit(1);
   if (!row) return c.json({ message: "No cached audio" }, 404);
@@ -604,13 +609,14 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
   }
 
   const voice = resolveTtsVoice(provider, body.data.voice);
+  const model = resolveTtsModel(provider, body.data.model);
   const format = TTS_FORMATS[provider];
   const source: TtsSource = body.data.source ?? "full";
 
   const [cached] = await db
     .select()
     .from(ttsAudio)
-    .where(ttsCacheConditions(id, userId, provider, voice, format, source));
+    .where(ttsCacheConditions(id, userId, provider, voice, model, format, source));
   if (cached) return c.json(toTtsAudioDTO(cached));
 
   const articleText = await resolveTtsSourceText(userId, id, source, owned.contentText);
@@ -619,12 +625,14 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
   }
 
   try {
-    const result = await generateTts({ db, userId, provider, voice, articleText });
+    const result = await generateTts({ db, userId, provider, voice, model: model ?? undefined, articleText });
 
     // Hashed rather than built from the raw voice string, which may contain
     // characters unsafe in a filename (and is otherwise untrusted input).
     const storageKey = `${createHash("sha256")
-      .update(`${id}:${userId}:${result.provider}:${result.voice}:${result.format}:${source}:${result.settingsVersion}`)
+      .update(
+        `${id}:${userId}:${result.provider}:${result.voice}:${result.model ?? ""}:${result.format}:${source}:${result.settingsVersion}`,
+      )
       .digest("hex")}.${result.format}`;
 
     // Synthesis (and, for paid providers, the credit spend) has already
@@ -644,6 +652,7 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
       const inline: TtsAudioDTO = {
         provider: result.provider,
         voice: result.voice,
+        model: result.model,
         format: result.format,
         source,
         durationSeconds: result.durationSeconds,
@@ -662,6 +671,7 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
         userId,
         provider: result.provider,
         voice: result.voice,
+        model: result.model ?? "",
         format: result.format,
         source,
         storageKey,
@@ -676,6 +686,7 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
           ttsAudio.userId,
           ttsAudio.provider,
           ttsAudio.voice,
+          ttsAudio.model,
           ttsAudio.format,
           ttsAudio.source,
           ttsAudio.settingsVersion,
@@ -689,7 +700,7 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
       [row] = await db
         .select()
         .from(ttsAudio)
-        .where(ttsCacheConditions(id, userId, provider, voice, format, source));
+        .where(ttsCacheConditions(id, userId, provider, voice, model, format, source));
     }
     return c.json(toTtsAudioDTO(row));
   } catch (err) {

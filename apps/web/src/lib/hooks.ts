@@ -272,13 +272,15 @@ export function useRequestTts() {
       articleId,
       provider,
       voice,
+      model,
       source,
     }: {
       articleId: string;
       provider?: TtsProviderKind;
       voice?: string;
+      model?: string;
       source?: TtsSource;
-    }) => api.requestTts(articleId, { provider, voice, source }),
+    }) => api.requestTts(articleId, { provider, voice, model, source }),
     onSuccess: (audio, { articleId, source }) => {
       queryClient.setQueryData(ttsAudioQueryKey(articleId, source ?? "full"), audio);
     },

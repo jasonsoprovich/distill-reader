@@ -6,6 +6,9 @@ export interface TtsSynthesizeRequest {
   // 0.5-2, matches ttsPrefsSchema's range; each provider maps it onto its
   // own speed knob (or clamps to its own supported range).
   speed: number;
+  // Only read by providers with a model concept (ElevenLabs); ignored
+  // otherwise.
+  model?: string;
 }
 
 export interface TtsSynthesizeResult {

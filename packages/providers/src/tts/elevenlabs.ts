@@ -1,9 +1,9 @@
 import { readCapped, safeFetch } from "@distill/extract";
 import { classifyStatus, isTimeoutError } from "./http.js";
-import { TTS_REQUEST_TIMEOUT_MS } from "./models.js";
+import { DEFAULT_TTS_MODELS, TTS_REQUEST_TIMEOUT_MS } from "./models.js";
 import { TtsProviderError, type TtsSynthesizeRequest, type TtsSynthesizeResult, type TtsProviderClient, type TtsVoiceInfo } from "./types.js";
 
-const DEFAULT_MODEL = "eleven_multilingual_v2";
+const DEFAULT_MODEL = DEFAULT_TTS_MODELS.elevenlabs as string;
 const OUTPUT_FORMAT = "mp3_44100_128";
 
 // ElevenLabs' voice_settings.speed is a narrower knob than our own 0.5-2 UI
@@ -46,7 +46,7 @@ export function createElevenLabsClient(apiKey: string, baseUrl?: string | null):
 
   return {
     provider: "elevenlabs",
-    async synthesize({ text, voice, speed }: TtsSynthesizeRequest): Promise<TtsSynthesizeResult> {
+    async synthesize({ text, voice, speed, model }: TtsSynthesizeRequest): Promise<TtsSynthesizeResult> {
       const clampedSpeed = Math.min(MAX_PROVIDER_SPEED, Math.max(MIN_PROVIDER_SPEED, speed));
 
       let response: Response;
@@ -59,7 +59,7 @@ export function createElevenLabsClient(apiKey: string, baseUrl?: string | null):
             timeoutMs: TTS_REQUEST_TIMEOUT_MS,
             body: JSON.stringify({
               text,
-              model_id: DEFAULT_MODEL,
+              model_id: model || DEFAULT_MODEL,
               voice_settings: clampedSpeed === 1 ? undefined : { speed: clampedSpeed },
             }),
           },
