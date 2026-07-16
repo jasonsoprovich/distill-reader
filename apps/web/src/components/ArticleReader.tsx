@@ -48,6 +48,7 @@ function SummaryPanel({ articleId }: { articleId: string }) {
         <Button
           variant="outline"
           size="sm"
+          className="border-[var(--surface-border)] bg-[var(--surface-hover)] text-[var(--surface-fg)] hover:bg-[var(--surface-active)]"
           onClick={() => requestSummary.mutate({ articleId })}
           disabled={requestSummary.isPending}
         >
@@ -185,7 +186,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                 title="Speed-read"
                 onClick={() => setIsRsvpOpen(true)}
               >
-                <ZapIcon className="size-4 text-neutral-400" />
+                <ZapIcon className="size-4" style={{ color: theme.muted }} />
               </Button>
               <AudioPlayer
                 articleId={article.id}
@@ -212,7 +213,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                 onClick={() => markRead.mutate({ id: article.id, read: !isRead })}
               >
                 {isRead ? (
-                  <MailOpenIcon className="size-4 text-neutral-400" />
+                  <MailOpenIcon className="size-4" style={{ color: theme.muted }} />
                 ) : (
                   <MailIcon className="size-4 text-sky-500" />
                 )}
@@ -225,7 +226,8 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                 onClick={() => starArticle.mutate({ id: article.id, starred: !article.starred })}
               >
                 <StarIcon
-                  className={cn("size-4", article.starred ? "text-amber-500" : "text-neutral-400")}
+                  className={cn("size-4", article.starred && "text-amber-500")}
+                  style={{ color: article.starred ? undefined : theme.muted }}
                   fill={article.starred ? "currentColor" : "none"}
                 />
               </Button>
@@ -236,7 +238,10 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                 title={isCleared ? "Restore" : "Remove from feed"}
                 onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
               >
-                <Trash2Icon className={cn("size-4", isCleared ? "text-destructive" : "text-neutral-400")} />
+                <Trash2Icon
+                  className={cn("size-4", isCleared && "text-destructive")}
+                  style={{ color: isCleared ? undefined : theme.muted }}
+                />
               </Button>
             </div>
           </div>

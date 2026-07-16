@@ -13,6 +13,7 @@ import {
   useUpdatePlaybackPosition,
   useUpdateSettings,
 } from "@/lib/hooks";
+import { useReaderTheme } from "@/lib/reader-theme";
 import { cn } from "@/lib/utils";
 
 interface AudioPlayerProps {
@@ -40,7 +41,7 @@ const POSITION_SAVE_INTERVAL_MS = 5_000;
 const PERSIST_PREFS_DELAY_MS = 600;
 
 function selectClass() {
-  return "h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  return "h-8 rounded-md border border-[var(--surface-border)] bg-transparent px-2 text-xs text-[var(--surface-fg)] shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 }
 
 function formatTime(seconds: number): string {
@@ -51,6 +52,11 @@ function formatTime(seconds: number): string {
 }
 
 export default function AudioPlayer({ articleId, articleText, initialPositionSeconds }: AudioPlayerProps) {
+  // The popover renders through a Radix Portal, outside the themed page's
+  // DOM subtree — var(--surface-*) refs inside it only resolve because we
+  // re-declare the vars directly on PopoverContent below, not because they
+  // inherit from Reader.tsx's root.
+  const { vars: themeVars } = useReaderTheme();
   const [source, setSource] = useState<TtsSource>("full");
   const { data: summary } = useSummary(articleId);
   const hasSummary = Boolean(summary);
@@ -284,10 +290,14 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
             className="size-8"
             title="Listen"
           >
-            <Volume2Icon className={cn("size-4", isPlaying ? "text-emerald-600" : "text-neutral-400")} />
+            <Volume2Icon className={cn("size-4", isPlaying ? "text-emerald-600" : "text-[var(--surface-muted)]")} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="flex w-96 flex-col gap-3">
+        <PopoverContent
+          align="end"
+          className="flex w-96 flex-col gap-3 border-[var(--surface-border)] bg-[var(--surface-bg)] text-[var(--surface-fg)]"
+          style={themeVars}
+        >
           {providerVoicePicker}
 
           {!audio ? (
@@ -295,45 +305,46 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
               <Button
                 variant="outline"
                 size="sm"
+                className="border-[var(--surface-border)] bg-[var(--surface-hover)] text-[var(--surface-fg)] hover:bg-[var(--surface-active)]"
                 onClick={() => requestTts.mutate({ articleId, provider, voice, source: effectiveSource })}
                 disabled={requestTts.isPending}
               >
                 <Volume2Icon className="size-4" />
                 {requestTts.isPending ? "Generating audio…" : "Listen"}
               </Button>
-              <span className="text-xs text-neutral-400">
+              <span className="text-xs text-[var(--surface-muted)]">
                 {sourceCharCount.toLocaleString()} characters
                 {effectiveProvider === "elevenlabs" && " (≈ ElevenLabs credits)"}
               </span>
             </div>
           ) : (
             <>
-              <span className="text-xs font-medium text-neutral-500">
+              <span className="text-xs font-medium text-[var(--surface-muted)]">
                 {audio.provider} {audio.voice} · {audio.charCount.toLocaleString()} characters
               </span>
 
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" className="size-8" title={`Back ${SKIP_SECONDS}s`} onClick={() => skip(-SKIP_SECONDS)}>
-                  <RotateCcwIcon className="size-4 text-neutral-500" />
+                  <RotateCcwIcon className="size-4 text-[var(--surface-muted)]" />
                 </Button>
                 <Button variant="ghost" size="icon" className="size-9" title={isPlaying ? "Pause" : "Play"} onClick={togglePlay}>
                   {isPlaying ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
                 </Button>
                 <Button variant="ghost" size="icon" className="size-8" title={`Forward ${SKIP_SECONDS}s`} onClick={() => skip(SKIP_SECONDS)}>
-                  <RotateCwIcon className="size-4 text-neutral-500" />
+                  <RotateCwIcon className="size-4 text-[var(--surface-muted)]" />
                 </Button>
 
-                <span className="w-9 shrink-0 text-right text-xs text-neutral-400">{formatTime(currentTime)}</span>
+                <span className="w-9 shrink-0 text-right text-xs text-[var(--surface-muted)]">{formatTime(currentTime)}</span>
                 <input
                   type="range"
-                  className="h-1 flex-1 cursor-pointer accent-neutral-700"
+                  className="h-1 flex-1 cursor-pointer"
                   min={0}
                   max={duration ?? audio.durationSeconds ?? 0}
                   step={0.1}
                   value={currentTime}
                   onChange={(e) => seekTo(Number(e.target.value))}
                 />
-                <span className="w-9 shrink-0 text-xs text-neutral-400">
+                <span className="w-9 shrink-0 text-xs text-[var(--surface-muted)]">
                   {formatTime(duration ?? audio.durationSeconds ?? 0)}
                 </span>
               </div>
@@ -353,7 +364,10 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
                 </select>
 
                 <label
-                  className={cn("flex shrink-0 items-center gap-1.5 text-xs text-neutral-500", !audio.timings && "opacity-50")}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 text-xs text-[var(--surface-muted)]",
+                    !audio.timings && "opacity-50",
+                  )}
                   title={audio.timings ? undefined : "This audio has no word timings (Piper) — highlight-follow needs ElevenLabs"}
                 >
                   <input
@@ -368,7 +382,7 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
               </div>
 
               {highlightFollowEnabled && words.length > 0 && (
-                <div className="max-h-40 overflow-y-auto rounded border border-neutral-200 bg-white px-3 py-2 text-sm leading-relaxed text-neutral-700">
+                <div className="max-h-40 overflow-y-auto rounded border border-[var(--surface-border)] bg-[var(--surface-hover)] px-3 py-2 text-sm leading-relaxed text-[var(--surface-fg)]">
                   {words.map((word, i) => (
                     <span
                       key={i}
@@ -377,7 +391,7 @@ export default function AudioPlayer({ articleId, articleText, initialPositionSec
                       }}
                       className={cn(
                         "cursor-pointer rounded px-0.5",
-                        i === activeWordIndex ? "bg-amber-200 text-neutral-900" : "hover:bg-neutral-100",
+                        i === activeWordIndex ? "bg-amber-200 text-neutral-900" : "hover:bg-[var(--surface-active)]",
                       )}
                       onClick={() => seekTo(word.startSeconds)}
                     >

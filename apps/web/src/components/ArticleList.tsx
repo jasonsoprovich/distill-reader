@@ -246,7 +246,7 @@ export default function ArticleList({
                   onClick={() => starArticle.mutate({ id: article.id, starred: !article.starred })}
                 >
                   <StarIcon
-                    className={cn("size-3.5", article.starred ? "text-amber-500" : "text-neutral-400")}
+                    className={cn("size-3.5", article.starred ? "text-amber-500" : "text-[var(--surface-muted)]")}
                     fill={article.starred ? "currentColor" : "none"}
                   />
                 </Button>
@@ -257,7 +257,9 @@ export default function ArticleList({
                   title={isCleared ? "Restore" : "Remove from feed"}
                   onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
                 >
-                  <Trash2Icon className={cn("size-3.5", isCleared ? "text-destructive" : "text-neutral-400")} />
+                  <Trash2Icon
+                    className={cn("size-3.5", isCleared ? "text-destructive" : "text-[var(--surface-muted)]")}
+                  />
                 </Button>
               </div>
             </div>

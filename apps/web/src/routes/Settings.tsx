@@ -51,7 +51,7 @@ const PROVIDER_LABELS: Record<CredentialProviderKind, string> = {
 };
 
 function selectClass() {
-  return "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  return "h-9 rounded-md border border-[var(--surface-border)] bg-transparent px-3 text-sm text-[var(--surface-fg)] shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 }
 
 function AddCredentialForm() {
@@ -83,9 +83,9 @@ function AddCredentialForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-md border p-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-md border border-[var(--surface-border)] p-3">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Provider
           <select
             className={selectClass()}
@@ -99,14 +99,14 @@ function AddCredentialForm() {
             ))}
           </select>
         </label>
-        <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-neutral-500">
+        <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Label
           <Input placeholder="e.g. Personal key" value={label} onChange={(e) => setLabel(e.target.value)} required />
         </label>
       </div>
 
       {keyed && (
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           API key
           <Input
             type="password"
@@ -118,7 +118,7 @@ function AddCredentialForm() {
         </label>
       )}
       {!keyed && (
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Base URL
           <Input
             placeholder={BASE_URL_PLACEHOLDERS[provider]}
@@ -126,7 +126,7 @@ function AddCredentialForm() {
             onChange={(e) => setBaseUrl(e.target.value)}
             autoComplete="off"
           />
-          {BASE_URL_HELP[provider] && <span className="font-normal text-neutral-400">{BASE_URL_HELP[provider]}</span>}
+          {BASE_URL_HELP[provider] && <span className="font-normal text-[var(--surface-muted)]">{BASE_URL_HELP[provider]}</span>}
         </label>
       )}
 
@@ -143,18 +143,23 @@ function CredentialsList() {
   const { data: credentials = [], isLoading } = useCredentials();
   const deleteCredential = useDeleteCredential();
 
-  if (isLoading) return <p className="text-sm text-neutral-400">Loading…</p>;
-  if (credentials.length === 0) return <p className="text-sm text-neutral-400">No credentials yet.</p>;
+  if (isLoading) return <p className="text-sm text-[var(--surface-muted)]">Loading…</p>;
+  if (credentials.length === 0) return <p className="text-sm text-[var(--surface-muted)]">No credentials yet.</p>;
 
   return (
     <ul className="flex flex-col gap-2">
       {credentials.map((c) => (
-        <li key={c.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+        <li
+          key={c.id}
+          className="flex items-center justify-between gap-2 rounded-md border border-[var(--surface-border)] px-3 py-2 text-sm"
+        >
           <div className="flex min-w-0 items-center gap-2">
-            <Badge variant="outline">{PROVIDER_LABELS[c.provider]}</Badge>
+            <Badge variant="outline" className="border-[var(--surface-border)] text-[var(--surface-fg)]">
+              {PROVIDER_LABELS[c.provider]}
+            </Badge>
             <span className="truncate font-medium">{c.label}</span>
-            {c.baseUrl && <span className="truncate text-xs text-neutral-400">{c.baseUrl}</span>}
-            {c.hasSecret && <span className="text-xs text-neutral-400">key on file</span>}
+            {c.baseUrl && <span className="truncate text-xs text-[var(--surface-muted)]">{c.baseUrl}</span>}
+            {c.hasSecret && <span className="text-xs text-[var(--surface-muted)]">key on file</span>}
           </div>
           <Button
             variant="ghost"
@@ -163,7 +168,7 @@ function CredentialsList() {
             title="Delete credential"
             onClick={() => deleteCredential.mutate(c.id)}
           >
-            <TrashIcon className="size-4 text-neutral-400" />
+            <TrashIcon className="size-4 text-[var(--surface-muted)]" />
           </Button>
         </li>
       ))}
@@ -178,7 +183,7 @@ function DefaultProviderPicker() {
   if (!settings) return null;
 
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
       Default summary provider
       <select
         className={selectClass()}
@@ -207,7 +212,7 @@ function DefaultTtsProviderPicker() {
   if (!settings) return null;
 
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
       Default TTS provider
       <select
         className={selectClass()}
@@ -301,7 +306,7 @@ function ReaderThemePicker() {
         })}
       </div>
 
-      <label className="flex items-center gap-3 text-xs font-medium text-neutral-500">
+      <label className="flex items-center gap-3 text-xs font-medium text-[var(--surface-muted)]">
         <span className="w-16 shrink-0">Font size</span>
         <Slider value={[fontSize]} min={14} max={24} step={1} onValueChange={([v]) => pickFontSize(v)} />
         <span className="w-10 shrink-0 text-right">{fontSize}px</span>
