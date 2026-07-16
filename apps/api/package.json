@@ -23,7 +23,7 @@
     "hono-rate-limiter": "^0.5.3"
   },
   "devDependencies": {
-    "@types/node": "^22.19.1",
+    "@types/node": "^26.1.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
