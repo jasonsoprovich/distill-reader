@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import ArticleList from "@/components/ArticleList";
 import ArticleReader from "@/components/ArticleReader";
 import FeedSidebar from "@/components/FeedSidebar";
 import { useReaderTheme } from "@/lib/reader-theme";
 import type { Selection } from "@/lib/selection";
-import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
 // Below the md breakpoint, only one pane is visible at a time — this tracks
@@ -14,88 +12,68 @@ import { cn } from "@/lib/utils";
 // all three panes show simultaneously regardless of this state.
 type MobileView = "sidebar" | "list" | "reader";
 
-// Matches Tailwind's default `md` breakpoint — the same threshold every
-// other `md:` class in this component (and its children) already resizes
-// around, so the JS-driven layout switch below lines up with the CSS one.
-const DESKTOP_QUERY = "(min-width: 768px)";
+const SIDEBAR_COLLAPSED_KEY = "distill:sidebarCollapsed";
+const LIST_COLLAPSED_KEY = "distill:listCollapsed";
 
-const SEPARATOR_CLASS =
-  "w-1 shrink-0 cursor-col-resize bg-[var(--surface-border)] transition-colors hover:bg-[var(--surface-active)] active:bg-[var(--surface-active)]";
+function loadCollapsed(key: string): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(key) === "true";
+}
 
 export default function Reader() {
   const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>("sidebar");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => loadCollapsed(SIDEBAR_COLLAPSED_KEY));
+  const [listCollapsed, setListCollapsed] = useState(() => loadCollapsed(LIST_COLLAPSED_KEY));
   const { vars } = useReaderTheme();
-  const isDesktop = useMediaQuery(DESKTOP_QUERY);
 
-  // Desktop-only: mobile is a single visible pane at a time, where
-  // per-pane widths don't apply. Two separate component trees (rather than
-  // one shared tree toggled by CSS) so ArticleReader — whose useTtsPlayback
-  // hook deliberately keeps its <audio> element mounted for uninterrupted
-  // playback while the bottom bar/modal open and close — is never mounted
-  // twice at once.
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "distill-reader-panel-layout",
-    storage: typeof window === "undefined" ? undefined : window.localStorage,
-  });
-
-  function selectAndAdvance(next: Selection) {
-    setSelection(next);
-    setSelectedArticleId(null);
-    setMobileView("list");
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
   }
 
-  function selectArticle(id: string) {
-    setSelectedArticleId(id);
-    setMobileView("reader");
-  }
-
-  if (isDesktop) {
-    return (
-      <Group
-        orientation="horizontal"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
-        className="flex h-screen bg-[var(--surface-bg)] text-[var(--surface-fg)]"
-        style={vars}
-      >
-        <Panel id="sidebar" defaultSize={18} minSize={12} maxSize={35}>
-          <FeedSidebar className="flex h-full" selection={selection} onSelect={selectAndAdvance} />
-        </Panel>
-        <Separator className={SEPARATOR_CLASS} />
-        <Panel id="list" defaultSize={30} minSize={18} maxSize={50}>
-          <ArticleList
-            className="flex h-full"
-            selection={selection}
-            selectedArticleId={selectedArticleId}
-            onSelectArticle={selectArticle}
-          />
-        </Panel>
-        <Separator className={SEPARATOR_CLASS} />
-        <Panel id="reader" defaultSize={52} minSize={30}>
-          <ArticleReader className="flex h-full" articleId={selectedArticleId} />
-        </Panel>
-      </Group>
-    );
+  function toggleListCollapsed() {
+    setListCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(LIST_COLLAPSED_KEY, String(next));
+      return next;
+    });
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)]" style={vars}>
+    <div
+      className="flex h-screen flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)] md:flex-row"
+      style={vars}
+    >
       <FeedSidebar
-        className={cn(mobileView === "sidebar" ? "flex" : "hidden")}
+        className={cn("md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
         selection={selection}
-        onSelect={selectAndAdvance}
+        onSelect={(next) => {
+          setSelection(next);
+          setSelectedArticleId(null);
+          setMobileView("list");
+        }}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapsed}
       />
       <ArticleList
-        className={cn(mobileView === "list" ? "flex" : "hidden")}
+        className={cn("md:flex", mobileView === "list" ? "flex" : "hidden")}
         selection={selection}
         selectedArticleId={selectedArticleId}
-        onSelectArticle={selectArticle}
+        onSelectArticle={(id) => {
+          setSelectedArticleId(id);
+          setMobileView("reader");
+        }}
         onBack={() => setMobileView("sidebar")}
+        collapsed={listCollapsed}
+        onToggleCollapse={toggleListCollapsed}
       />
       <ArticleReader
-        className={cn(mobileView === "reader" ? "flex" : "hidden")}
+        className={cn("md:flex", mobileView === "reader" ? "flex" : "hidden")}
         articleId={selectedArticleId}
         onBack={() => setMobileView("list")}
       />

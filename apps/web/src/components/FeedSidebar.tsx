@@ -3,6 +3,8 @@ import {
   ArrowDownAZIcon,
   ArrowDownWideNarrowIcon,
   ArrowUpNarrowWideIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   PencilIcon,
   RefreshCwIcon,
   SettingsIcon,
@@ -33,6 +35,8 @@ interface FeedSidebarProps {
   selection: Selection;
   onSelect: (selection: Selection) => void;
   className?: string;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const SMART_VIEWS: { view: ArticleView; label: string }[] = [
@@ -233,7 +237,13 @@ function navButtonClass(active: boolean) {
   );
 }
 
-export default function FeedSidebar({ selection, onSelect, className }: FeedSidebarProps) {
+export default function FeedSidebar({
+  selection,
+  onSelect,
+  className,
+  collapsed,
+  onToggleCollapse,
+}: FeedSidebarProps) {
   const { data: feeds = [], isLoading, isError, refetch: refetchFeeds } = useFeeds();
   const { data: tags = [] } = useTags();
   const pollFeed = usePollFeed();
@@ -251,11 +261,20 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
 
   return (
     <aside
-      className={cn("flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]", className)}
+      className={cn(
+        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]",
+        collapsed ? "md:w-12" : "md:w-64",
+        className,
+      )}
     >
-      <div className="flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3">
-        <span className="text-sm font-semibold">Distill</span>
-        <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          "flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3",
+          collapsed && "md:justify-center md:px-2",
+        )}
+      >
+        <span className={cn("text-sm font-semibold", collapsed && "md:hidden")}>Distill</span>
+        <div className={cn("flex items-center gap-3", collapsed && "md:hidden")}>
           <Link
             to="/settings"
             title="Settings"
@@ -271,9 +290,19 @@ export default function FeedSidebar({ selection, onSelect, className }: FeedSide
             Sign out
           </button>
         </div>
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden text-[var(--surface-muted)] hover:text-[var(--surface-fg)] md:inline-flex"
+          >
+            {collapsed ? <PanelLeftOpenIcon className="size-4" /> : <PanelLeftCloseIcon className="size-4" />}
+          </button>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <nav className={cn("flex-1 overflow-y-auto px-2 py-3", collapsed && "md:hidden")}>
         <button type="button" onClick={() => onSelect({ kind: "all" })} className={navButtonClass(selection.kind === "all")}>
           All
         </button>

@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { ArrowLeftIcon, CheckCheckIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckCheckIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  StarIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useArticles, useClearArticle, useMarkRead, useReadAll, useStarArticle } from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
@@ -11,6 +19,8 @@ interface ArticleListProps {
   onSelectArticle: (id: string) => void;
   onBack?: () => void;
   className?: string;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 function formatDate(iso: string | null): string {
@@ -24,6 +34,8 @@ export default function ArticleList({
   onSelectArticle,
   onBack,
   className,
+  collapsed,
+  onToggleCollapse,
 }: ArticleListProps) {
   const { feedId, tagId, view } = selectionToArticlesParams(selection);
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useArticles(
@@ -71,89 +83,111 @@ export default function ArticleList({
 
   return (
     <section
-      className={cn("flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]", className)}
+      className={cn(
+        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]",
+        collapsed ? "md:w-12" : "md:w-96",
+        className,
+      )}
     >
-      <div className="flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3">
-        {selectMode ? (
-          <>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-6"
-                title="Clear selection"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                <XIcon className="size-4 text-[var(--surface-muted)]" />
-              </Button>
-              <span className="text-xs font-medium text-[var(--surface-muted)]">{selectedIds.size} selected</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
-                disabled={isBulkPending}
-                onClick={() => runBulk((id) => markRead.mutateAsync({ id, read: true }))}
-              >
-                <CheckCheckIcon className="size-3.5" />
-                Mark read
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
-                disabled={isBulkPending}
-                onClick={() => runBulk((id) => starArticle.mutateAsync({ id, starred: true }))}
-              >
-                <StarIcon className="size-3.5" />
-                Star
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
-                disabled={isBulkPending}
-                onClick={() => runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))}
-              >
-                <Trash2Icon className="size-3.5" />
-                Remove
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              {onBack && (
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 border-b border-[var(--surface-border)] px-4 py-3",
+          collapsed && "md:justify-center md:px-2",
+        )}
+      >
+        <div className={cn("flex flex-1 items-center justify-between gap-2", collapsed && "md:hidden")}>
+          {selectMode ? (
+            <>
+              <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-6 md:hidden"
-                  title="Back to feeds"
-                  onClick={onBack}
+                  className="size-6"
+                  title="Clear selection"
+                  onClick={() => setSelectedIds(new Set())}
                 >
-                  <ArrowLeftIcon className="size-4 text-[var(--surface-muted)]" />
+                  <XIcon className="size-4 text-[var(--surface-muted)]" />
+                </Button>
+                <span className="text-xs font-medium text-[var(--surface-muted)]">{selectedIds.size} selected</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  disabled={isBulkPending}
+                  onClick={() => runBulk((id) => markRead.mutateAsync({ id, read: true }))}
+                >
+                  <CheckCheckIcon className="size-3.5" />
+                  Mark read
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  disabled={isBulkPending}
+                  onClick={() => runBulk((id) => starArticle.mutateAsync({ id, starred: true }))}
+                >
+                  <StarIcon className="size-3.5" />
+                  Star
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  disabled={isBulkPending}
+                  onClick={() => runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))}
+                >
+                  <Trash2Icon className="size-3.5" />
+                  Remove
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                {onBack && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 md:hidden"
+                    title="Back to feeds"
+                    onClick={onBack}
+                  >
+                    <ArrowLeftIcon className="size-4 text-[var(--surface-muted)]" />
+                  </Button>
+                )}
+                <span className="text-xs font-medium text-[var(--surface-muted)]">Articles</span>
+              </div>
+              {canMarkAllRead && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  onClick={() => readAll.mutate({ feedId, tagId })}
+                  disabled={readAll.isPending || articles.length === 0}
+                >
+                  <CheckCheckIcon className="size-3.5" />
+                  Mark all read
                 </Button>
               )}
-              <span className="text-xs font-medium text-[var(--surface-muted)]">Articles</span>
-            </div>
-            {canMarkAllRead && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
-                onClick={() => readAll.mutate({ feedId, tagId })}
-                disabled={readAll.isPending || articles.length === 0}
-              >
-                <CheckCheckIcon className="size-3.5" />
-                Mark all read
-              </Button>
-            )}
-          </>
+            </>
+          )}
+        </div>
+        {onToggleCollapse && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-[var(--surface-fg)] md:inline-flex"
+            title={collapsed ? "Expand article list" : "Collapse article list"}
+            onClick={onToggleCollapse}
+          >
+            {collapsed ? <PanelLeftOpenIcon className="size-4" /> : <PanelLeftCloseIcon className="size-4" />}
+          </Button>
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className={cn("flex-1 overflow-y-auto", collapsed && "md:hidden")}>
         {isLoading && <p className="p-4 text-sm text-[var(--surface-muted)]">Loading articles…</p>}
         {isError && (
           <div className="flex flex-col items-start gap-1 p-4 text-sm text-destructive">
