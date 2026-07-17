@@ -46,17 +46,19 @@ import { cn, fuzzyMatch } from "@/lib/utils";
 
 const KEYED_PROVIDERS = new Set<CredentialProviderKind>(["openai", "anthropic", "elevenlabs"]);
 
-// Both providers use a self-hosted base URL instead of a key, but they're
+// Self-hosted providers use a base URL instead of a key, but they're
 // different services on different default ports — a shared placeholder was
 // showing Ollama's address even when Piper was selected.
 const BASE_URL_PLACEHOLDERS: Partial<Record<CredentialProviderKind, string>> = {
   ollama: "http://ollama:11434",
   piper: "http://piper:5000",
+  kokoro: "http://kokoro:8880",
 };
 
 const BASE_URL_HELP: Partial<Record<CredentialProviderKind, string>> = {
   ollama: "The address of your self-hosted Ollama server.",
   piper: "The address of your self-hosted Piper HTTP server (docker/piper — run with the \"piper\" compose profile).",
+  kokoro: "The address of your self-hosted Kokoro-FastAPI server — run with the \"kokoro\" compose profile.",
 };
 
 const PROVIDER_LABELS: Record<CredentialProviderKind, string> = {
@@ -65,6 +67,7 @@ const PROVIDER_LABELS: Record<CredentialProviderKind, string> = {
   ollama: "Ollama (local)",
   elevenlabs: "ElevenLabs",
   piper: "Piper (local)",
+  kokoro: "Kokoro (local)",
 };
 
 // Piper has no model concept at all (voice-only), so it's absent here — the

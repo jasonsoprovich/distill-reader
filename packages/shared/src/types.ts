@@ -11,7 +11,7 @@ export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
 export const SUMMARY_PROVIDERS = ["openai", "anthropic", "ollama"] as const;
 export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 
-export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai"] as const;
+export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai", "kokoro"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
 
 // ElevenLabs' selectable TTS models — Piper has no model concept, so its

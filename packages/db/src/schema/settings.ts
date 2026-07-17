@@ -8,6 +8,7 @@ export const credentialProvider = pgEnum("credential_provider", [
   "ollama",
   "elevenlabs",
   "piper",
+  "kokoro",
 ]);
 
 const bytea = customType<{ data: Buffer }>({

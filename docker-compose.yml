@@ -150,6 +150,17 @@ services:
     volumes:
       - piper_data:/data
 
+  # Enable with: docker compose --profile kokoro up. Pre-built image (no
+  # Dockerfile of our own, unlike Piper) — Kokoro-FastAPI's images ship
+  # every built-in voice baked in already, so there's no per-voice download
+  # step or volume to persist. Pinned to the current release-branch tag
+  # (v0.6.0) rather than :latest, which Kokoro-FastAPI's own docs warn can
+  # point at unreleased master-branch builds.
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.6.0
+    profiles: ["kokoro"]
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   audio_storage:

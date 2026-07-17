@@ -43,6 +43,13 @@
       "when": 1784258949940,
       "tag": "0005_overjoyed_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784260599647,
+      "tag": "0006_clever_thanos",
+      "breakpoints": true
     }
   ]
 }

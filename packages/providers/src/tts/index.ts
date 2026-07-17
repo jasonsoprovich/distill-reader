@@ -5,6 +5,7 @@ import { chunkText } from "../summary/chunk.js";
 import type { ResolvedCredential } from "../summary/types.js";
 import { concatMp3, concatWav } from "./audio-concat.js";
 import { createElevenLabsClient } from "./elevenlabs.js";
+import { createKokoroClient } from "./kokoro.js";
 import {
   DEFAULT_TTS_MODELS,
   DEFAULT_TTS_VOICES,
@@ -33,6 +34,9 @@ function createClient(provider: TtsProviderKind, credential: ResolvedCredential)
     case "openai":
       if (!credential.apiKey) throw new TtsProviderError(provider, "auth", "No OpenAI API key configured");
       return createOpenAiTtsClient(credential.apiKey, credential.baseUrl);
+    case "kokoro":
+      if (!credential.baseUrl) throw new TtsProviderError(provider, "auth", "No Kokoro base URL configured");
+      return createKokoroClient(credential.baseUrl);
   }
 }
 

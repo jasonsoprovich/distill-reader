@@ -34,15 +34,16 @@ Full stack (Postgres + API + worker + web) via Docker Compose:
 docker compose up --build
 ```
 
-### Optional: self-hosted summary/TTS providers (Ollama, Piper)
+### Optional: self-hosted summary/TTS providers (Ollama, Piper, Kokoro)
 
-Ollama (AI summaries) and Piper (TTS narration) are self-hosted, so they're addressed by URL instead of an API key. Piper doesn't start with the default `docker compose up` — it's behind a Compose profile:
+Ollama (AI summaries), Piper, and Kokoro (TTS narration) are self-hosted, so they're addressed by URL instead of an API key. Neither TTS sidecar starts with the default `docker compose up` — each is behind its own Compose profile:
 
 ```sh
 docker compose --profile piper up -d piper
+docker compose --profile kokoro up -d kokoro
 ```
 
-Then, in the app's Settings → API credentials, add a credential for the provider with its base URL — `http://piper:5000` for the bundled Piper sidecar, or your own `piper.http_server` address if you're running it elsewhere (same idea for Ollama, typically `http://ollama:11434`). See `.env.example`'s `PIPER_BASE_URL`/`OLLAMA_BASE_URL`/`PIPER_VOICE` for the matching operator-side config.
+Then, in the app's Settings → API credentials, add a credential for the provider with its base URL — `http://piper:5000` for the bundled Piper sidecar, `http://kokoro:8880` for the bundled Kokoro-FastAPI sidecar, or your own instance's address if you're running one elsewhere (same idea for Ollama, typically `http://ollama:11434`). See `.env.example`'s `PIPER_BASE_URL`/`KOKORO_BASE_URL`/`OLLAMA_BASE_URL`/`PIPER_VOICE` for the matching operator-side config. Kokoro ships every built-in voice baked into its image, so — unlike Piper — there's no separate voice-download env var to set.
 
 ### Optional: OAuth sign-in (GitHub, Google)
 
