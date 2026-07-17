@@ -43,7 +43,7 @@ export default function ListenSourceDialog({ playback, mutedColor }: ListenSourc
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={6} className="w-64 p-1.5">
+      <PopoverContent align="start" sideOffset={6} className="w-64 p-1.5">
         <button
           type="button"
           className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-[var(--surface-hover)] disabled:pointer-events-none disabled:opacity-50"
