@@ -28,11 +28,36 @@ export const READER_THEME_STYLES: Record<ReaderThemeName, { background: string; 
   "catppuccin-mocha": { background: "#1e1e2e", color: "#cdd6f4", muted: "#a6adc8" },
   // https://www.nordtheme.com/docs/colors-and-palettes — nord0/nord6/nord4.
   nord: { background: "#2e3440", color: "#eceff4", muted: "#d8dee9" },
-  // Matches the speed-reader's own (already-liked) default look — see
-  // RsvpReader.tsx, which imports these three values back out of here
-  // rather than keeping its own separate copy, so picking "Ember" here
-  // gives the rest of the app the same palette RSVP already defaults to.
-  ember: { background: "#171717", color: "#f5f5f5", muted: "#f97316" },
+  // A warm-neutral muted tone, not the RSVP page's orange pivot accent —
+  // `muted` here drives read-article titles, byline text, icons etc.
+  // app-wide (readerSurfaceVars below), so it needs to stay *dimmer* than
+  // `color` the way every other theme's muted is (a toned-down version of
+  // the foreground), not a brighter, differently-hued accent. RSVP's own
+  // orange look is preserved separately, in RSVP_THEME_PRESETS.ember below.
+  ember: { background: "#171717", color: "#f5f5f5", muted: "#a8a29e" },
+};
+
+// Speed-reader (RSVP) color defaults per theme — deliberately separate from
+// READER_THEME_STYLES.muted above (that's a general-purpose secondary-text
+// color; this is specifically the RSVP page's word/background/pivot triple,
+// tuned per theme for legibility at large display type rather than reused
+// from a role meant for small UI text). RsvpReader.tsx applies these as a
+// one-click "match theme" preset; the user's own color-picker choices in
+// rsvpPrefs always take precedence once set.
+export const RSVP_THEME_PRESETS: Record<ReaderThemeName, { wordColor: string; backgroundColor: string; pivotColor: string }> = {
+  light: { backgroundColor: "#ffffff", wordColor: "#171717", pivotColor: "#dc2626" },
+  sepia: { backgroundColor: "#f4ecd8", wordColor: "#3b3229", pivotColor: "#b45309" },
+  dark: { backgroundColor: "#171717", wordColor: "#e5e5e5", pivotColor: "#f87171" },
+  "high-contrast": { backgroundColor: "#000000", wordColor: "#ffffff", pivotColor: "#fde047" },
+  // https://catppuccin.com/palette — Latte's own "Red" accent.
+  "catppuccin-latte": { backgroundColor: "#eff1f5", wordColor: "#4c4f69", pivotColor: "#d20f39" },
+  // Catppuccin Mocha's own "Red" accent.
+  "catppuccin-mocha": { backgroundColor: "#1e1e2e", wordColor: "#cdd6f4", pivotColor: "#f38ba8" },
+  // https://www.nordtheme.com/docs/colors-and-palettes — nord0/nord6/nord11 (aurora red).
+  nord: { backgroundColor: "#2e3440", wordColor: "#eceff4", pivotColor: "#bf616a" },
+  // RSVP's original, already-liked default look — unchanged from before this
+  // theme/preset split existed.
+  ember: { backgroundColor: "#171717", wordColor: "#f5f5f5", pivotColor: "#f97316" },
 };
 
 // Themes dark enough to need Tailwind Typography's prose-invert variant for

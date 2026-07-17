@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronUpIcon, PauseIcon, PlayIcon, RotateCcwIcon, RefreshCwIcon, XIcon } from "lucide-react";
-import { computeOrpIndex, tokenizeForRsvp, wordDelayMultiplier } from "@distill/shared";
-import type { TtsSource } from "@distill/shared";
+import { READER_THEME_NAMES, computeOrpIndex, tokenizeForRsvp, wordDelayMultiplier } from "@distill/shared";
+import type { ReaderThemeName, TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useSettings, useSummary, useUpdateSettings } from "@/lib/hooks";
-import { READER_THEME_STYLES } from "@/lib/reader-theme";
+import { READER_THEME_LABELS, RSVP_THEME_PRESETS } from "@/lib/reader-theme";
 import { cn } from "@/lib/utils";
 
 interface RsvpReaderProps {
@@ -15,14 +15,13 @@ interface RsvpReaderProps {
 }
 
 const DEFAULT_WPM = 300;
-// The "Ember" reader theme (apps/web/src/lib/reader-theme.ts) is this
-// screen's own default look, kept as the theme's canonical values rather
-// than a second hardcoded copy here — so picking Ember in Settings gives
-// the rest of the app this same palette instead of two colors that happen
-// to look similar but can drift apart.
-const DEFAULT_WORD_COLOR = READER_THEME_STYLES.ember.color;
-const DEFAULT_BACKGROUND_COLOR = READER_THEME_STYLES.ember.background;
-const DEFAULT_PIVOT_COLOR = READER_THEME_STYLES.ember.muted;
+// "Ember" (apps/web/src/lib/reader-theme.ts) is this screen's own default
+// look, kept as the RSVP preset table's canonical values rather than a
+// second hardcoded copy here — so picking Ember gives the rest of the app
+// the same palette RSVP already defaults to.
+const DEFAULT_WORD_COLOR = RSVP_THEME_PRESETS.ember.wordColor;
+const DEFAULT_BACKGROUND_COLOR = RSVP_THEME_PRESETS.ember.backgroundColor;
+const DEFAULT_PIVOT_COLOR = RSVP_THEME_PRESETS.ember.pivotColor;
 const DEFAULT_DIM_LEVEL = 0;
 const DEFAULT_PUNCTUATION_PAUSE_ENABLED = true;
 
@@ -119,6 +118,26 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
     dirtyPrefsRef.current = true;
     setPivotColor(next);
   }
+
+  // One-click default matching a reader theme's look — after this, the
+  // three color pickers below still work as plain manual overrides, same as
+  // if the user had never touched a preset at all.
+  function pickThemePreset(themeName: ReaderThemeName) {
+    const preset = RSVP_THEME_PRESETS[themeName];
+    dirtyPrefsRef.current = true;
+    setWordColor(preset.wordColor);
+    setBackgroundColor(preset.backgroundColor);
+    setPivotColor(preset.pivotColor);
+  }
+
+  const activeThemePreset = READER_THEME_NAMES.find((themeName) => {
+    const preset = RSVP_THEME_PRESETS[themeName];
+    return (
+      preset.wordColor === wordColor &&
+      preset.backgroundColor === backgroundColor &&
+      preset.pivotColor === pivotColor
+    );
+  });
 
   function pickDimLevel(next: number) {
     dirtyPrefsRef.current = true;
@@ -274,6 +293,32 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
             />
             <span className="w-16 shrink-0 text-right">{Math.round(dimLevel * 100)}%</span>
           </label>
+
+          <div className="col-span-2 flex items-center gap-3">
+            <span className="w-24 shrink-0">Match theme</span>
+            <div className="flex flex-1 flex-wrap gap-2">
+              {READER_THEME_NAMES.map((themeName) => {
+                const preset = RSVP_THEME_PRESETS[themeName];
+                return (
+                  <button
+                    key={themeName}
+                    type="button"
+                    title={READER_THEME_LABELS[themeName]}
+                    aria-label={`Match ${READER_THEME_LABELS[themeName]} theme`}
+                    aria-pressed={activeThemePreset === themeName}
+                    onClick={() => pickThemePreset(themeName)}
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-full border",
+                      activeThemePreset === themeName ? "border-white" : "border-neutral-700",
+                    )}
+                    style={{ backgroundColor: preset.backgroundColor }}
+                  >
+                    <span className="size-2.5 rounded-full" style={{ backgroundColor: preset.pivotColor }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <label className="flex items-center gap-2">
             <span>Word color</span>
