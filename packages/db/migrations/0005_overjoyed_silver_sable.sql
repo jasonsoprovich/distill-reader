@@ -1,0 +1,1 @@
+ALTER TYPE "public"."tts_provider" ADD VALUE 'openai';

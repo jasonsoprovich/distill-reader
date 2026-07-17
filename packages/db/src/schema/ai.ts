@@ -13,7 +13,7 @@ import { user } from "./auth.js";
 import { article } from "./article.js";
 
 export const summaryProvider = pgEnum("summary_provider", ["openai", "anthropic", "ollama"]);
-export const ttsProvider = pgEnum("tts_provider", ["elevenlabs", "piper"]);
+export const ttsProvider = pgEnum("tts_provider", ["elevenlabs", "piper", "openai"]);
 export const ttsSource = pgEnum("tts_source", ["full", "summary"]);
 
 export const summary = pgTable(

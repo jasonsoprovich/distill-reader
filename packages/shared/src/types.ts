@@ -11,7 +11,7 @@ export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
 export const SUMMARY_PROVIDERS = ["openai", "anthropic", "ollama"] as const;
 export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 
-export const TTS_PROVIDERS = ["elevenlabs", "piper"] as const;
+export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
 
 // ElevenLabs' selectable TTS models — Piper has no model concept, so its
@@ -25,6 +25,38 @@ export const ELEVENLABS_MODELS = [
   { id: "eleven_v3", label: "v3 — most expressive" },
 ] as const;
 export type ElevenLabsModelId = (typeof ELEVENLABS_MODELS)[number]["id"];
+
+// OpenAI's selectable TTS models (https://platform.openai.com/docs/models —
+// verified against the current /v1/audio/speech reference, not memorized).
+// gpt-4o-mini-tts-2025-12-15 (a dated snapshot of the default row below) is
+// omitted, same reasoning as ElevenLabs' deprecated model above.
+export const OPENAI_TTS_MODELS = [
+  { id: "gpt-4o-mini-tts", label: "GPT-4o mini TTS — most natural, lowest cost" },
+  { id: "tts-1", label: "TTS-1 — fast, lower latency" },
+  { id: "tts-1-hd", label: "TTS-1 HD — higher fidelity" },
+] as const;
+export type OpenAiTtsModelId = (typeof OPENAI_TTS_MODELS)[number]["id"];
+
+// OpenAI's fixed set of built-in voice names — there's no list-voices
+// endpoint for these (unlike ElevenLabs' per-account catalog), so this is
+// the actual source of truth on both the server (packages/providers'
+// listVoices) and, indirectly, whatever picker renders what it returns.
+export const OPENAI_TTS_VOICES = [
+  "alloy",
+  "ash",
+  "ballad",
+  "cedar",
+  "coral",
+  "echo",
+  "fable",
+  "marin",
+  "nova",
+  "onyx",
+  "sage",
+  "shimmer",
+  "verse",
+] as const;
+export type OpenAiTtsVoiceId = (typeof OPENAI_TTS_VOICES)[number];
 
 // What text gets narrated/speed-read: the full extracted article, or the
 // cached AI summary. Distinct token/character cost and, per docs/COMPLIANCE.md,

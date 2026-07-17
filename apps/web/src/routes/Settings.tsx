@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import {
   CREDENTIAL_PROVIDERS,
   ELEVENLABS_MODELS,
+  OPENAI_TTS_MODELS,
   READER_THEME_NAMES,
   SUMMARY_PROVIDERS,
   TTS_PROVIDERS,
@@ -64,6 +65,13 @@ const PROVIDER_LABELS: Record<CredentialProviderKind, string> = {
   ollama: "Ollama (local)",
   elevenlabs: "ElevenLabs",
   piper: "Piper (local)",
+};
+
+// Piper has no model concept at all (voice-only), so it's absent here — the
+// picker below only renders a model dropdown for providers with an entry.
+const TTS_MODELS_BY_PROVIDER: Partial<Record<TtsProviderKind, readonly { id: string; label: string }[]>> = {
+  elevenlabs: ELEVENLABS_MODELS,
+  openai: OPENAI_TTS_MODELS,
 };
 
 function selectClass() {
@@ -425,6 +433,8 @@ function TtsVoicePicker() {
     return <p className="text-xs text-[var(--surface-muted)]">Pick a default TTS provider above to configure it.</p>;
   }
 
+  const models = TTS_MODELS_BY_PROVIDER[provider];
+
   return (
     <div className="flex flex-col gap-3">
       {voices && voices.length > 0 && (
@@ -434,12 +444,12 @@ function TtsVoicePicker() {
         </div>
       )}
 
-      {provider === "elevenlabs" && (
+      {models && (
         <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Model
           <select className={selectClass()} value={model ?? ""} onChange={(e) => pickModel(e.target.value || undefined)}>
             <option value="">Default model</option>
-            {ELEVENLABS_MODELS.map((m) => (
+            {models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
               </option>

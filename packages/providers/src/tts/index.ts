@@ -12,6 +12,7 @@ import {
   TTS_MAX_SINGLE_PASS_CHARS,
   TTS_SETTINGS_VERSION,
 } from "./models.js";
+import { createOpenAiTtsClient } from "./openai.js";
 import { createPiperClient } from "./piper.js";
 import { TtsProviderError, type TtsProviderClient, type TtsSynthesizeResult, type TtsVoiceInfo } from "./types.js";
 
@@ -29,6 +30,9 @@ function createClient(provider: TtsProviderKind, credential: ResolvedCredential)
     case "piper":
       if (!credential.baseUrl) throw new TtsProviderError(provider, "auth", "No Piper base URL configured");
       return createPiperClient(credential.baseUrl);
+    case "openai":
+      if (!credential.apiKey) throw new TtsProviderError(provider, "auth", "No OpenAI API key configured");
+      return createOpenAiTtsClient(credential.apiKey, credential.baseUrl);
   }
 }
 
