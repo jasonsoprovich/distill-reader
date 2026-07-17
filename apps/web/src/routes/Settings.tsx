@@ -505,9 +505,16 @@ function ReaderThemePicker() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, fontSize, fontFamily]);
 
+  // Theme and font-family are discrete, one-shot picks (a button/select
+  // choice, not a stream of intermediate values) — persisted immediately
+  // rather than through the debounce below, so the rest of the app (which
+  // reads the same settings cache via useReaderTheme()) picks up the change
+  // right away instead of waiting out an arbitrary delay. Font size still
+  // goes through the debounced path since a slider drag fires many
+  // intermediate values that shouldn't each trigger their own request.
   function pickName(next: ReaderThemeName) {
-    dirtyRef.current = true;
     setName(next);
+    updateSettings.mutate({ readerTheme: { name: next, fontSize, fontFamily } });
   }
 
   function pickFontSize(next: number) {
@@ -516,8 +523,8 @@ function ReaderThemePicker() {
   }
 
   function pickFontFamily(next: ReaderFontName) {
-    dirtyRef.current = true;
     setFontFamily(next);
+    updateSettings.mutate({ readerTheme: { name, fontSize, fontFamily: next } });
   }
 
   if (!settings) return null;
@@ -527,14 +534,21 @@ function ReaderThemePicker() {
       <div className="flex flex-wrap gap-2">
         {READER_THEME_NAMES.map((themeName) => {
           const style = READER_THEME_STYLES[themeName];
+          const active = name === themeName;
           return (
             <button
               key={themeName}
               type="button"
               onClick={() => pickName(themeName)}
-              className={cn(selectClass(), "px-3", name === themeName && "outline-2 outline-offset-2 outline-ring")}
+              aria-pressed={active}
+              className={cn(
+                selectClass(),
+                "flex items-center gap-1.5 px-3",
+                active && "outline-2 outline-offset-2 outline-ring",
+              )}
               style={{ backgroundColor: style.background, color: style.color }}
             >
+              {active && <CheckIcon className="size-3.5 shrink-0" />}
               {READER_THEME_LABELS[themeName]}
             </button>
           );

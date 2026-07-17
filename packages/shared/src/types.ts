@@ -183,7 +183,15 @@ export interface TtsPrefs {
 }
 
 // PLAN §8.3 — built-in reader themes, persisted in user_settings.reader_theme.
-export const READER_THEME_NAMES = ["light", "sepia", "dark", "high-contrast"] as const;
+export const READER_THEME_NAMES = [
+  "light",
+  "sepia",
+  "dark",
+  "high-contrast",
+  "catppuccin-latte",
+  "catppuccin-mocha",
+  "nord",
+] as const;
 export type ReaderThemeName = (typeof READER_THEME_NAMES)[number];
 
 // The original system stacks ("sans"/"serif"/"monospace" — kept as-is so an

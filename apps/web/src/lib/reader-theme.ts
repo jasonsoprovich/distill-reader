@@ -7,6 +7,9 @@ export const READER_THEME_LABELS: Record<ReaderThemeName, string> = {
   sepia: "Sepia",
   dark: "Dark",
   "high-contrast": "High contrast",
+  "catppuccin-latte": "Catppuccin Latte",
+  "catppuccin-mocha": "Catppuccin Mocha",
+  nord: "Nord",
 };
 
 // PLAN §8.3 — background/text/muted-text triples per built-in theme. The
@@ -18,11 +21,17 @@ export const READER_THEME_STYLES: Record<ReaderThemeName, { background: string; 
   sepia: { background: "#f4ecd8", color: "#3b3229", muted: "#8a7863" },
   dark: { background: "#171717", color: "#e5e5e5", muted: "#a3a3a3" },
   "high-contrast": { background: "#000000", color: "#ffffff", muted: "#d4d4d4" },
+  // https://catppuccin.com/palette — Latte (light) base/text/subtext0.
+  "catppuccin-latte": { background: "#eff1f5", color: "#4c4f69", muted: "#6c6f85" },
+  // Catppuccin Mocha (dark) base/text/subtext0.
+  "catppuccin-mocha": { background: "#1e1e2e", color: "#cdd6f4", muted: "#a6adc8" },
+  // https://www.nordtheme.com/docs/colors-and-palettes — nord0/nord6/nord4.
+  nord: { background: "#2e3440", color: "#eceff4", muted: "#d8dee9" },
 };
 
 // Themes dark enough to need Tailwind Typography's prose-invert variant for
 // the article body (headings/links/code/blockquotes).
-export const DARK_READER_THEMES = new Set<ReaderThemeName>(["dark", "high-contrast"]);
+export const DARK_READER_THEMES = new Set<ReaderThemeName>(["dark", "high-contrast", "catppuccin-mocha", "nord"]);
 
 export const DEFAULT_READER_THEME_NAME: ReaderThemeName = "light";
 export const DEFAULT_READER_FONT_SIZE = 17;

@@ -19,6 +19,7 @@ import type {
   PatchFeedInput,
   PatchSettingsInput,
   PatchTagInput,
+  SettingsDTO,
   SummaryProviderKind,
   TtsProviderKind,
   TtsSource,
@@ -378,7 +379,31 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (patch: PatchSettingsInput) => api.updateSettings(patch),
+    // Optimistic: applied to the shared settings cache the instant
+    // `.mutate()` is called, not after the round-trip completes — every
+    // reader of useSettings() (theme, TTS prefs, etc.) re-renders
+    // immediately instead of waiting on the network. Nested objects are
+    // merged rather than replaced so a partial patch (e.g. `{ ttsPrefs:
+    // { source } }`) doesn't optimistically wipe sibling fields like
+    // voice/model/speed until the real response reconciles them.
+    onMutate: async (patch) => {
+      await queryClient.cancelQueries({ queryKey: settingsQueryKey });
+      const previous = queryClient.getQueryData<SettingsDTO>(settingsQueryKey);
+      if (previous) {
+        queryClient.setQueryData<SettingsDTO>(settingsQueryKey, {
+          ...previous,
+          ...patch,
+          readerTheme: { ...previous.readerTheme, ...patch.readerTheme },
+          rsvpPrefs: { ...previous.rsvpPrefs, ...patch.rsvpPrefs },
+          ttsPrefs: { ...previous.ttsPrefs, ...patch.ttsPrefs },
+        });
+      }
+      return { previous };
+    },
     onSuccess: (settings) => queryClient.setQueryData(settingsQueryKey, settings),
-    onError: () => toast("Couldn't update settings — try again.", "error"),
+    onError: (_err, _patch, context) => {
+      if (context?.previous) queryClient.setQueryData(settingsQueryKey, context.previous);
+      toast("Couldn't update settings — try again.", "error");
+    },
   });
 }
