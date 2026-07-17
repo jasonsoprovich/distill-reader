@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftIcon,
   BookOpenIcon,
-  ChevronDownIcon,
   ExternalLinkIcon,
+  Loader2Icon,
   MailIcon,
   MailOpenIcon,
   SparklesIcon,
@@ -11,9 +11,8 @@ import {
   Trash2Icon,
   ZapIcon,
 } from "lucide-react";
-import type { HighlightWord } from "@distill/shared";
+import type { HighlightWord, SummaryDTO } from "@distill/shared";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AudioBar from "@/components/AudioBar";
 import ListenSourceDialog from "@/components/ListenSourceDialog";
 import RsvpReader from "@/components/RsvpReader";
@@ -90,65 +89,70 @@ function ReadAlongBlock({
   );
 }
 
-function SummaryPanel({ articleId }: { articleId: string }) {
-  const { data: summary, isLoading } = useSummary(articleId);
-  const requestSummary = useRequestSummary();
+// Display-only — generation and the open/closed toggle both live in the
+// toolbar's summary icon now (SummaryToggleButton below), so this just
+// renders whatever's already been fetched.
+function SummaryPanel({ summary }: { summary: SummaryDTO }) {
   const { isDark: isDarkTheme, style: theme } = useReaderTheme();
-  const [open, setOpen] = useState(true);
-
-  if (isLoading) return null;
-
-  if (!summary) {
-    return (
-      <div className="mt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-[var(--surface-border)] bg-[var(--surface-hover)] text-[var(--surface-fg)] hover:bg-[var(--surface-active)]"
-          onClick={() => requestSummary.mutate({ articleId })}
-          disabled={requestSummary.isPending}
-        >
-          <SparklesIcon className="size-4" />
-          {requestSummary.isPending ? "Summarizing…" : "Summarize"}
-        </Button>
-      </div>
-    );
-  }
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="mt-6 border-b pb-6"
-      style={{ borderColor: theme.muted + "33" }}
-    >
+    <div className="mt-6 border-b pb-6" style={{ borderColor: theme.muted + "33" }}>
       <div className="flex items-center gap-2">
         <SparklesIcon className="size-3.5 shrink-0" style={{ color: theme.muted }} />
         <span className="text-xs font-medium tracking-wide" style={{ color: theme.muted }}>
           Summary · {summary.provider} {summary.model}
         </span>
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto size-6"
-            title={open ? "Hide summary" : "Show summary"}
-          >
-            <ChevronDownIcon className={cn("size-4 transition-transform", !open && "-rotate-90")} />
-          </Button>
-        </CollapsibleTrigger>
       </div>
-      <CollapsibleContent>
-        <div
-          className={cn(
-            "prose mt-3 max-w-none whitespace-pre-line",
-            isDarkTheme ? "prose-invert" : "prose-neutral",
-          )}
-        >
-          {summary.content}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      <div
+        className={cn("prose mt-3 max-w-none whitespace-pre-line", isDarkTheme ? "prose-invert" : "prose-neutral")}
+      >
+        {summary.content}
+      </div>
+    </div>
+  );
+}
+
+// Toolbar icon replacing the old inline "Summarize" button: generates a
+// summary if none exists yet, otherwise toggles the SummaryPanel below the
+// title open/closed — same active-state color convention as the Listen
+// icon (ListenSourceDialog) so both narration and summary controls read
+// consistently at a glance.
+function SummaryToggleButton({
+  articleId,
+  open,
+  onToggle,
+  onGenerated,
+  mutedColor,
+}: {
+  articleId: string;
+  open: boolean;
+  onToggle: () => void;
+  onGenerated: () => void;
+  mutedColor: string;
+}) {
+  const { data: summary, isLoading } = useSummary(articleId);
+  const requestSummary = useRequestSummary();
+  const hasSummary = Boolean(summary);
+  const active = hasSummary && open;
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8"
+      title={hasSummary ? (open ? "Hide summary" : "Show summary") : "Summarize"}
+      disabled={isLoading || requestSummary.isPending}
+      onClick={() => {
+        if (hasSummary) onToggle();
+        else requestSummary.mutate({ articleId }, { onSuccess: onGenerated });
+      }}
+    >
+      {requestSummary.isPending ? (
+        <Loader2Icon className="size-4 animate-spin" style={{ color: mutedColor }} />
+      ) : (
+        <SparklesIcon className={cn("size-4", active && "text-emerald-600")} style={active ? undefined : { color: mutedColor }} />
+      )}
+    </Button>
   );
 }
 
@@ -158,6 +162,8 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
   const starArticle = useStarArticle();
   const clearArticle = useClearArticle();
   const [isRsvpOpen, setIsRsvpOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const { data: summary } = useSummary(articleId);
 
   const { style: theme, isDark: isDarkTheme, fontSize, fontStack } = useReaderTheme();
   // Called unconditionally (before the loading/error early-returns below)
@@ -261,6 +267,13 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                 >
                   <ZapIcon className="size-4" style={{ color: theme.muted }} />
                 </Button>
+                <SummaryToggleButton
+                  articleId={article.id}
+                  open={summaryOpen}
+                  onToggle={() => setSummaryOpen((o) => !o)}
+                  onGenerated={() => setSummaryOpen(true)}
+                  mutedColor={theme.muted}
+                />
                 <ListenSourceDialog playback={playback} mutedColor={theme.muted} />
                 <Button
                   variant="ghost"
@@ -348,7 +361,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
               isDarkTheme={isDarkTheme}
             />
           ) : (
-            <SummaryPanel articleId={article.id} />
+            summary && summaryOpen && <SummaryPanel summary={summary} />
           )}
   
           {playback.activeSource === "full" && playback.highlightActive ? (
