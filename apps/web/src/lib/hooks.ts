@@ -75,26 +75,6 @@ export function useDeleteFeed() {
   });
 }
 
-export function usePollFeed() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.pollFeed(id),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: feedsQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["articles"] });
-      // The poll can legitimately find nothing new (e.g. dedup against
-      // already-ingested items) — without this the button silently
-      // succeeding reads identically to it doing nothing at all.
-      toast(
-        result.articlesInserted > 0
-          ? `Refreshed — ${result.articlesInserted} new article${result.articlesInserted === 1 ? "" : "s"}.`
-          : "Refreshed — no new articles.",
-      );
-    },
-    onError: () => toast("Couldn't refresh that feed — try again.", "error"),
-  });
-}
-
 // No bulk-poll endpoint exists server-side, so this fires one poll per feed
 // in parallel and tolerates individual failures (a dead feed shouldn't stop
 // the rest from refreshing) — mirrors ArticleList's runBulk pattern.

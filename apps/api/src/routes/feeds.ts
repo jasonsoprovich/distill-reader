@@ -35,6 +35,13 @@ async function deleteFeedAudioFiles(feedId: string): Promise<void> {
   );
 }
 
+// A brand-new feed's first poll is synchronous (part of the create request,
+// no job queue exists to defer it — same constraint as the summary/TTS
+// routes), so its item count is capped well below the regular per-poll cap
+// to keep that request's latency bounded: enough to confirm the feed works
+// and give the user something to read, not a full backfill.
+const INITIAL_POLL_ITEM_LIMIT = 10;
+
 export const feedsRouter = new Hono<{ Variables: AuthVariables }>();
 feedsRouter.use("*", requireAuth);
 
@@ -120,7 +127,7 @@ feedsRouter.post("/preview", costlyRouteRateLimit, async (c) => {
   return c.json(discovered);
 });
 
-feedsRouter.post("/", async (c) => {
+feedsRouter.post("/", costlyRouteRateLimit, async (c) => {
   const userId = c.get("userId");
   const body = createFeedSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
@@ -141,6 +148,18 @@ feedsRouter.post("/", async (c) => {
     }
   }
 
+  // Ingest failures (source unreachable, no items, etc.) shouldn't fail feed
+  // creation — the feed row already exists and can be refreshed manually —
+  // so ingestResult.error is deliberately not surfaced here; it's already
+  // captured on the feed row itself (lastError/consecutiveFailures) by
+  // ingestFeed and picked up below.
+  const ingestResult = await ingestFeed(db, row, { itemLimit: INITIAL_POLL_ITEM_LIMIT });
+
+  // ingestFeed just updated lastPolledAt/lastError/consecutiveFailures on
+  // this same row in the DB — re-read it so the response reflects that
+  // instead of the pre-ingest values still held in `row`.
+  const [freshRow] = await db.select().from(feed).where(eq(feed.id, row.id));
+
   const tagsMap = await tagsByFeedId(userId);
 
   // PLAN §10.6 — audit log for feed add.
@@ -152,7 +171,10 @@ feedsRouter.post("/", async (c) => {
     metadata: { sourceUrl: row.sourceUrl, kind: row.kind },
   });
 
-  return c.json(toDTO(row, tagsMap.get(row.id) ?? [], 0), 201);
+  // Freshly inserted articles have no article_state row yet, so every one
+  // ingestFeed just inserted is unread by definition — no need for a second
+  // query to recompute what ingestResult.articlesInserted already tells us.
+  return c.json(toDTO(freshRow, tagsMap.get(row.id) ?? [], ingestResult.articlesInserted), 201);
 });
 
 feedsRouter.get("/:id", async (c) => {

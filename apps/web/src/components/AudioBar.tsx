@@ -20,10 +20,10 @@ function VolumeIcon({ volume }: { volume: number }) {
   return <Volume2Icon className="size-4" />;
 }
 
-// Persistent bar pinned to the bottom of the reading pane (not the whole
-// app window — see ArticleReader's "relative"/"absolute" wrapper) so the
-// user can scrub/adjust volume/play-pause with the full article still open
-// above it, instead of a small popover covering part of the page.
+// Rendered as a normal (non-scrolling) flex sibling below the article's own
+// scrollable region — see ArticleReader's flex-col wrapper — so it stays
+// pinned to the bottom of the reading pane's viewport rather than scrolling
+// away with the article content.
 export default function AudioBar({ playback }: AudioBarProps) {
   const { activeSource, isPlaying, currentTime, duration, volume, setVolume, togglePlay, skip, seekTo, stop } =
     playback;
@@ -31,7 +31,7 @@ export default function AudioBar({ playback }: AudioBarProps) {
   if (!activeSource) return null;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 border-t border-[var(--surface-border)] bg-[var(--surface-bg)] px-4 py-2">
+    <div className="flex shrink-0 items-center gap-2 border-t border-[var(--surface-border)] bg-[var(--surface-bg)] px-4 py-2">
       <Button variant="ghost" size="icon" className="size-8 shrink-0" title={`Back ${TTS_SKIP_SECONDS}s`} onClick={() => skip(-TTS_SKIP_SECONDS)}>
         <RotateCcwIcon className="size-4 text-[var(--surface-muted)]" />
       </Button>

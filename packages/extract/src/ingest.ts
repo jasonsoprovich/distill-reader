@@ -21,6 +21,18 @@ export interface IngestResult {
 const BACKOFF_BASE_MINUTES = 5;
 const MAX_BACKOFF_MINUTES = 24 * 60;
 
+// Extracting a fresh feed's first batch of items means fetching that many
+// article pages from the same source in a tight loop. Confirmed against
+// bleepingcomputer.com: firing ~10 requests back-to-back with no gap starts
+// drawing HTTP 429s from around the 11th one on — a plain per-request rate
+// limit, not a fluke. A small stagger between fetches keeps a normal-sized
+// poll well under that kind of burst threshold.
+const EXTRACT_STAGGER_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Applies to every poll (first ingest and every subsequent tick alike —
 // there's no separate "backfill" path). Without this, an adapter with no
 // cap of its own (rss.ts ingests every item the feed returns) can dump a
@@ -54,8 +66,12 @@ export function isFeedDue(
  * and update the feed's poll bookkeeping (last_polled_at / last_error /
  * consecutive_failures with exponential backoff). Shared by the worker's
  * scheduled tick and the API's manual `POST /feeds/:id/poll`.
+ *
+ * `itemLimit` overrides MAX_ITEMS_PER_POLL — used to give a newly-created
+ * feed a smaller initial batch (bounded latency on the synchronous create
+ * request) rather than the full backfill a regular poll allows.
  */
-export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult> {
+export async function ingestFeed(db: Db, feedRow: FeedRow, opts: { itemLimit?: number } = {}): Promise<IngestResult> {
   const adapter = getAdapter(feedRow.kind);
 
   try {
@@ -64,11 +80,12 @@ export async function ingestFeed(db: Db, feedRow: FeedRow): Promise<IngestResult
       sourceUrl: feedRow.sourceUrl,
       title: feedRow.title,
     });
-    const items = fetchedItems.slice(0, MAX_ITEMS_PER_POLL);
+    const items = fetchedItems.slice(0, opts.itemLimit ?? MAX_ITEMS_PER_POLL);
 
     let inserted = 0;
     const insertedArticleIds: string[] = [];
-    for (const item of items) {
+    for (const [index, item] of items.entries()) {
+      if (index > 0) await sleep(EXTRACT_STAGGER_MS);
       const extracted = await extractArticle(item.url);
       const contentHtml = extracted.contentHtml
         ? sanitizeArticleHtml(extracted.contentHtml, item.url)

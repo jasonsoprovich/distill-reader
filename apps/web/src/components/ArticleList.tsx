@@ -4,8 +4,6 @@ import {
   ArrowLeftIcon,
   ArrowUpNarrowWideIcon,
   CheckCheckIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
   StarIcon,
   Trash2Icon,
   XIcon,
@@ -22,8 +20,6 @@ interface ArticleListProps {
   onSelectArticle: (id: string) => void;
   onBack?: () => void;
   className?: string;
-  collapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
 const SORT_DIR_STORAGE_KEY = "distill:articleSortDir";
@@ -44,8 +40,6 @@ export default function ArticleList({
   onSelectArticle,
   onBack,
   className,
-  collapsed,
-  onToggleCollapse,
 }: ArticleListProps) {
   const { feedId, tagId, view } = selectionToArticlesParams(selection);
   const [sortDir, setSortDir] = useState<ArticleSortDirection>(loadSortDir);
@@ -102,18 +96,12 @@ export default function ArticleList({
   return (
     <section
       className={cn(
-        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]",
-        collapsed ? "md:w-12" : "md:w-96",
+        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)] md:w-96",
         className,
       )}
     >
-      <div
-        className={cn(
-          "flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--surface-border)] px-4",
-          collapsed && "md:justify-center md:px-2",
-        )}
-      >
-        <div className={cn("flex min-w-0 flex-1 items-center justify-between gap-2", collapsed && "md:hidden")}>
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--surface-border)] px-4">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
           {selectMode ? (
             <>
               <div className="flex min-w-0 items-center gap-1.5">
@@ -209,20 +197,9 @@ export default function ArticleList({
             </>
           )}
         </div>
-        {onToggleCollapse && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-[var(--surface-fg)] md:inline-flex"
-            title={collapsed ? "Expand article list" : "Collapse article list"}
-            onClick={onToggleCollapse}
-          >
-            {collapsed ? <PanelLeftOpenIcon className="size-4" /> : <PanelLeftCloseIcon className="size-4" />}
-          </Button>
-        )}
       </div>
 
-      <div className={cn("flex-1 overflow-y-auto", collapsed && "md:hidden")}>
+      <div className="flex-1 overflow-y-auto">
         {isLoading && <p className="p-4 text-sm text-[var(--surface-muted)]">Loading articles…</p>}
         {isError && (
           <div className="flex flex-col items-start gap-1 p-4 text-sm text-destructive">

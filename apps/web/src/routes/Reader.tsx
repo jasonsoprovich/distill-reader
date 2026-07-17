@@ -1,7 +1,6 @@
 import { useState } from "react";
 import ArticleList from "@/components/ArticleList";
 import ArticleReader from "@/components/ArticleReader";
-import CollapsedRail from "@/components/CollapsedRail";
 import FeedSidebar from "@/components/FeedSidebar";
 import { useReaderTheme } from "@/lib/reader-theme";
 import type { Selection } from "@/lib/selection";
@@ -14,7 +13,6 @@ import { cn } from "@/lib/utils";
 type MobileView = "sidebar" | "list" | "reader";
 
 const SIDEBAR_COLLAPSED_KEY = "distill:sidebarCollapsed";
-const LIST_COLLAPSED_KEY = "distill:listCollapsed";
 
 function loadCollapsed(key: string): boolean {
   if (typeof window === "undefined") return false;
@@ -26,8 +24,6 @@ export default function Reader() {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>("sidebar");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => loadCollapsed(SIDEBAR_COLLAPSED_KEY));
-  const [listCollapsed, setListCollapsed] = useState(() => loadCollapsed(LIST_COLLAPSED_KEY));
-  const bothCollapsed = sidebarCollapsed && listCollapsed;
   const { vars } = useReaderTheme();
 
   function toggleSidebarCollapsed() {
@@ -38,21 +34,13 @@ export default function Reader() {
     });
   }
 
-  function toggleListCollapsed() {
-    setListCollapsed((prev) => {
-      const next = !prev;
-      window.localStorage.setItem(LIST_COLLAPSED_KEY, String(next));
-      return next;
-    });
-  }
-
   return (
     <div
       className="flex h-screen flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)] md:flex-row"
       style={vars}
     >
       <FeedSidebar
-        className={cn(bothCollapsed ? "md:hidden" : "md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
+        className={cn("md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
         selection={selection}
         onSelect={(next) => {
           setSelection(next);
@@ -63,7 +51,7 @@ export default function Reader() {
         onToggleCollapse={toggleSidebarCollapsed}
       />
       <ArticleList
-        className={cn(bothCollapsed ? "md:hidden" : "md:flex", mobileView === "list" ? "flex" : "hidden")}
+        className={cn("md:flex", mobileView === "list" ? "flex" : "hidden")}
         selection={selection}
         selectedArticleId={selectedArticleId}
         onSelectArticle={(id) => {
@@ -71,12 +59,7 @@ export default function Reader() {
           setMobileView("reader");
         }}
         onBack={() => setMobileView("sidebar")}
-        collapsed={listCollapsed}
-        onToggleCollapse={toggleListCollapsed}
       />
-      {bothCollapsed && (
-        <CollapsedRail onExpandSidebar={toggleSidebarCollapsed} onExpandList={toggleListCollapsed} />
-      )}
       <ArticleReader
         className={cn("md:flex", mobileView === "reader" ? "flex" : "hidden")}
         articleId={selectedArticleId}

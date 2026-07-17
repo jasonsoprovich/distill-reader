@@ -39,7 +39,10 @@ export function extractFromHtml(html: string, url: string): ExtractedArticle {
 
     const documentClone = dom.window.document.cloneNode(true) as Document;
     const article = new Readability(documentClone).parse();
-    if (!article?.content) return { ...EMPTY_FAILED, leadImageUrl };
+    if (!article?.content) {
+      console.warn(`[extract] Readability found no content for ${url}`);
+      return { ...EMPTY_FAILED, leadImageUrl };
+    }
 
     const contentText = article.textContent?.trim() ?? "";
     const wordCount = countWords(contentText);
@@ -58,7 +61,8 @@ export function extractFromHtml(html: string, url: string): ExtractedArticle {
       wordCount,
       extractionStatus,
     };
-  } catch {
+  } catch (err) {
+    console.warn(`[extract] parse threw for ${url}:`, err instanceof Error ? err.message : err);
     return EMPTY_FAILED;
   }
 }
@@ -67,15 +71,22 @@ export function extractFromHtml(html: string, url: string): ExtractedArticle {
  * Fetches `url` and runs extractFromHtml() to derive the clean article body.
  * Never throws: network/parse failures produce extractionStatus:"failed"
  * with empty content so ingest.ts can still store a stub row and the UI
- * can offer "open original".
+ * can offer "open original". The failure reason isn't persisted anywhere
+ * per-article (no column for it), so it's logged here — otherwise a run of
+ * "failed" extractions (e.g. a source site rate-limiting a fresh feed's
+ * initial backfill) is undiagnosable after the fact.
  */
 export async function extractArticle(url: string): Promise<ExtractedArticle> {
   let html: string;
   try {
     const response = await safeFetch(url);
-    if (!response.ok) return EMPTY_FAILED;
+    if (!response.ok) {
+      console.warn(`[extract] fetch failed for ${url}: HTTP ${response.status}`);
+      return EMPTY_FAILED;
+    }
     html = (await readCapped(response, MAX_ARTICLE_BYTES)).toString("utf-8");
-  } catch {
+  } catch (err) {
+    console.warn(`[extract] fetch threw for ${url}:`, err instanceof Error ? err.message : err);
     return EMPTY_FAILED;
   }
 

@@ -7,7 +7,6 @@ import {
   PanelLeftOpenIcon,
   PencilIcon,
   RefreshCcwDotIcon,
-  RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -32,7 +31,6 @@ import {
   useDeleteFeed,
   useDeleteTag,
   useFeeds,
-  usePollFeed,
   useRefreshAllFeeds,
   useTags,
   useUpdateFeed,
@@ -356,7 +354,6 @@ export default function FeedSidebar({
 }: FeedSidebarProps) {
   const { data: feeds = [], isLoading, isError, refetch: refetchFeeds } = useFeeds();
   const { data: tags = [] } = useTags();
-  const pollFeed = usePollFeed();
   const refreshAllFeeds = useRefreshAllFeeds();
   const [sortMode, setSortMode] = useState<FeedSortMode>(loadFeedSortMode);
   const sortedFeeds = useMemo(() => sortFeeds(feeds, sortMode), [feeds, sortMode]);
@@ -396,7 +393,10 @@ export default function FeedSidebar({
         )}
       </div>
 
-      <nav className={cn("flex-1 overflow-y-auto px-2 py-3", collapsed && "md:hidden")}>
+      {/* invisible, not hidden, when collapsed: display:none would drop this
+          flex-1 element's height, collapsing the footer below up against the
+          header instead of leaving it pinned to the bottom. */}
+      <nav className={cn("flex-1 overflow-y-auto px-2 py-3", collapsed && "md:invisible")}>
         <button type="button" onClick={() => onSelect({ kind: "all" })} className={navButtonClass(selection.kind === "all")}>
           All
         </button>
@@ -496,16 +496,6 @@ export default function FeedSidebar({
             {feed.unreadCount > 0 && (
               <span className="shrink-0 pr-2 text-xs text-[var(--surface-muted)]">{feed.unreadCount}</span>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden size-6 shrink-0 group-hover:inline-flex"
-              onClick={() => pollFeed.mutate(feed.id)}
-              disabled={pollFeed.isPending}
-              title="Refresh feed"
-            >
-              <RefreshCwIcon className="size-3.5" />
-            </Button>
             <EditFeedDialog feed={feed} />
             <DeleteFeedButton
               feed={feed}
@@ -535,9 +525,10 @@ export default function FeedSidebar({
           type="button"
           onClick={() => authClient.signOut()}
           title="Sign out"
-          className="text-xs text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+          className="flex items-center gap-2 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
         >
-          {collapsed ? <LogOutIcon className="hidden size-4 md:inline-flex" /> : "Sign out"}
+          <LogOutIcon className="size-4 shrink-0" />
+          <span className={cn("text-sm", collapsed && "md:hidden")}>Sign out</span>
         </button>
       </div>
     </aside>
