@@ -6,7 +6,14 @@ import {
   type TtsSource,
   type TtsTimings,
 } from "@distill/shared";
-import { useRequestTts, useSettings, useSummary, useUpdatePlaybackPosition, useUpdateSettings } from "@/lib/hooks";
+import {
+  useRequestTts,
+  useSettings,
+  useSummary,
+  useTtsAudio,
+  useUpdatePlaybackPosition,
+  useUpdateSettings,
+} from "@/lib/hooks";
 
 export const TTS_SKIP_SECONDS = 15;
 const POSITION_SAVE_INTERVAL_MS = 5_000;
@@ -82,6 +89,13 @@ export function useTtsPlayback(
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioTimings, setAudioTimings] = useState<TtsTimings | null>(null);
 
+  // Cache-only lookup (never triggers generation/spend) for whatever source
+  // was last listened to — lets a previously-narrated article come back
+  // playable on its own when the user returns to it, instead of forcing
+  // them back through the source-choice modal every time.
+  const { data: cachedAudio } = useTtsAudio(articleId, settings?.ttsPrefs.source ?? "full");
+  const autoLoadedRef = useRef(false);
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const resumedRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -123,8 +137,23 @@ export function useTtsPlayback(
       // resume-to-position logic, since this ref would already be true from
       // whatever article was listened to earlier in the session.
       resumedRef.current = false;
+      autoLoadedRef.current = false;
     };
   }, [articleId]);
+
+  // Fires once per article, as soon as the cache-only lookup above resolves
+  // — if the user already generated audio for this article (in this
+  // session or a previous one), it's ready to play without reopening the
+  // Listen modal. Guarded by the ref (not just `!audioUrl`) so an explicit
+  // stop() doesn't immediately reload the same cached audio right back.
+  useEffect(() => {
+    if (!cachedAudio || audioUrl || autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    setActiveSource(cachedAudio.source);
+    setAudioUrl(cachedAudio.url);
+    setAudioTimings(cachedAudio.timings);
+    setDuration(cachedAudio.durationSeconds);
+  }, [cachedAudio, audioUrl]);
 
   const words = useMemo(() => (audioTimings ? buildHighlightWords(audioTimings) : []), [audioTimings]);
   const activeWordIndex = findActiveWordIndex(words, currentTime);

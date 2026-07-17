@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { article, articleState, auditLog, db, feed, feedTag, summary, ttsAudio, userSettings } from "@distill/db";
 import {
   generateSummary,
@@ -248,6 +248,15 @@ articlesRouter.post("/:id/clear", async (c) => {
 
   const row = await upsertArticleState(userId, id, { clearedAt: body.data.cleared ? new Date() : null });
   if (!row) return c.json({ message: "Not found" }, 404);
+
+  // Removing an article from the feed also drops any narration cached for
+  // it — restoring the article (cleared -> false) doesn't bring audio back,
+  // it'll just regenerate on next listen, same as an article heard for the
+  // first time.
+  if (body.data.cleared) {
+    await deleteTtsAudioRows(and(eq(ttsAudio.articleId, id), eq(ttsAudio.userId, userId)));
+  }
+
   return c.json({ clearedAt: row.clearedAt ? row.clearedAt.toISOString() : null });
 });
 
@@ -470,6 +479,28 @@ function audioStoragePath(): string {
   return process.env.AUDIO_STORAGE_PATH ?? "/data/audio";
 }
 
+// Deletes every tts_audio row matching `condition` along with its on-disk
+// file (mirrors deleteOrphanedAudio in apps/worker/src/jobs/purge.ts). Used
+// both to clear cached audio when an article is removed from a feed and to
+// replace stale audio generated under a since-changed voice/provider — in
+// both cases the DB row alone isn't enough since the audio bytes live on
+// disk, keyed by storage_key, not in the row itself.
+async function deleteTtsAudioRows(condition: SQL<unknown> | undefined): Promise<void> {
+  if (!condition) return;
+  const rows = await db.select({ storageKey: ttsAudio.storageKey }).from(ttsAudio).where(condition);
+  if (!rows.length) return;
+  await Promise.all(
+    rows.map(async (row) => {
+      try {
+        await unlink(path.join(audioStoragePath(), row.storageKey));
+      } catch (err) {
+        console.error(`Failed to delete audio file "${row.storageKey}"`, err);
+      }
+    }),
+  );
+  await db.delete(ttsAudio).where(condition);
+}
+
 // Absolute URL (same convention as the signed image proxy in
 // packages/extract/src/image-proxy.ts): the player's <audio src> points
 // straight at the API's own public origin, not a relative path the SPA
@@ -664,6 +695,24 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
       };
       return c.json(inline);
     }
+
+    // Regenerating under a different voice/provider/model replaces whatever
+    // was cached before (both sources — a stale "summary" narration left
+    // behind in the old voice would be just as wrong to keep around as a
+    // stale "full" one), rather than piling up one audio file per voice
+    // ever tried.
+    await deleteTtsAudioRows(
+      and(
+        eq(ttsAudio.articleId, id),
+        eq(ttsAudio.userId, userId),
+        or(
+          ne(ttsAudio.provider, result.provider),
+          ne(ttsAudio.voice, result.voice),
+          ne(ttsAudio.model, result.model ?? ""),
+          ne(ttsAudio.format, result.format),
+        ),
+      ),
+    );
 
     let [row] = await db
       .insert(ttsAudio)
