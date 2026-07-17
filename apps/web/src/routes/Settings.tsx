@@ -386,7 +386,7 @@ function TtsVoicePicker() {
   const [highlightFollowEnabled, setHighlightFollowEnabled] = useState(false);
 
   const provider = settings?.defaultTtsProvider ?? null;
-  const { data: voices } = useTtsVoices(provider);
+  const { data: voices, isError: voicesErrored, error: voicesError } = useTtsVoices(provider);
 
   useEffect(() => {
     if (loadedRef.current || !settings) return;
@@ -442,6 +442,12 @@ function TtsVoicePicker() {
           Voice
           <VoiceCombobox voices={voices} value={voice} onChange={pickVoice} />
         </div>
+      )}
+      {voicesErrored && (
+        <p className="text-xs text-destructive">
+          Couldn't load voices for {PROVIDER_LABELS[provider]}
+          {voicesError instanceof ApiError ? `: ${voicesError.message}` : "."}
+        </p>
       )}
 
       {models && (
