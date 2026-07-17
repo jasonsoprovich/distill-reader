@@ -32,6 +32,7 @@ import {
   useUpdateSettings,
 } from "@/lib/hooks";
 import {
+  DARK_READER_THEMES,
   DEFAULT_READER_FONT_FAMILY,
   DEFAULT_READER_FONT_SIZE,
   DEFAULT_READER_THEME_NAME,
@@ -550,10 +551,11 @@ function ReaderThemePicker() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {READER_THEME_NAMES.map((themeName) => {
           const style = READER_THEME_STYLES[themeName];
           const active = name === themeName;
+          const dark = DARK_READER_THEMES.has(themeName);
           return (
             <button
               key={themeName}
@@ -561,14 +563,20 @@ function ReaderThemePicker() {
               onClick={() => pickName(themeName)}
               aria-pressed={active}
               className={cn(
-                selectClass(),
-                "flex items-center gap-1.5 px-3",
-                active && "outline-2 outline-offset-2 outline-ring",
+                "flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg border text-sm font-medium",
+                active && "ring-2 ring-ring ring-offset-2 ring-offset-[var(--surface-bg)]",
               )}
-              style={{ backgroundColor: style.background, color: style.color }}
+              style={{
+                backgroundColor: style.background,
+                color: style.color,
+                borderColor: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+              }}
             >
-              {active && <CheckIcon className="size-3.5 shrink-0" />}
-              {READER_THEME_LABELS[themeName]}
+              <span className="flex items-center gap-1.5">
+                {active && <CheckIcon className="size-3.5 shrink-0" />}
+                {READER_THEME_LABELS[themeName]}
+              </span>
+              <span className="size-2 rounded-full" style={{ backgroundColor: style.muted }} />
             </button>
           );
         })}

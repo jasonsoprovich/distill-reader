@@ -5,6 +5,7 @@ import type { TtsSource } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useSettings, useSummary, useUpdateSettings } from "@/lib/hooks";
+import { READER_THEME_STYLES } from "@/lib/reader-theme";
 import { cn } from "@/lib/utils";
 
 interface RsvpReaderProps {
@@ -14,9 +15,14 @@ interface RsvpReaderProps {
 }
 
 const DEFAULT_WPM = 300;
-const DEFAULT_WORD_COLOR = "#f5f5f5";
-const DEFAULT_BACKGROUND_COLOR = "#171717";
-const DEFAULT_PIVOT_COLOR = "#f97316";
+// The "Ember" reader theme (apps/web/src/lib/reader-theme.ts) is this
+// screen's own default look, kept as the theme's canonical values rather
+// than a second hardcoded copy here — so picking Ember in Settings gives
+// the rest of the app this same palette instead of two colors that happen
+// to look similar but can drift apart.
+const DEFAULT_WORD_COLOR = READER_THEME_STYLES.ember.color;
+const DEFAULT_BACKGROUND_COLOR = READER_THEME_STYLES.ember.background;
+const DEFAULT_PIVOT_COLOR = READER_THEME_STYLES.ember.muted;
 const DEFAULT_DIM_LEVEL = 0;
 const DEFAULT_PUNCTUATION_PAUSE_ENABLED = true;
 

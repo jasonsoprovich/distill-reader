@@ -223,6 +223,7 @@ export const READER_THEME_NAMES = [
   "catppuccin-latte",
   "catppuccin-mocha",
   "nord",
+  "ember",
 ] as const;
 export type ReaderThemeName = (typeof READER_THEME_NAMES)[number];
 

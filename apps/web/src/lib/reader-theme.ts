@@ -10,6 +10,7 @@ export const READER_THEME_LABELS: Record<ReaderThemeName, string> = {
   "catppuccin-latte": "Catppuccin Latte",
   "catppuccin-mocha": "Catppuccin Mocha",
   nord: "Nord",
+  ember: "Ember",
 };
 
 // PLAN §8.3 — background/text/muted-text triples per built-in theme. The
@@ -27,11 +28,22 @@ export const READER_THEME_STYLES: Record<ReaderThemeName, { background: string; 
   "catppuccin-mocha": { background: "#1e1e2e", color: "#cdd6f4", muted: "#a6adc8" },
   // https://www.nordtheme.com/docs/colors-and-palettes — nord0/nord6/nord4.
   nord: { background: "#2e3440", color: "#eceff4", muted: "#d8dee9" },
+  // Matches the speed-reader's own (already-liked) default look — see
+  // RsvpReader.tsx, which imports these three values back out of here
+  // rather than keeping its own separate copy, so picking "Ember" here
+  // gives the rest of the app the same palette RSVP already defaults to.
+  ember: { background: "#171717", color: "#f5f5f5", muted: "#f97316" },
 };
 
 // Themes dark enough to need Tailwind Typography's prose-invert variant for
 // the article body (headings/links/code/blockquotes).
-export const DARK_READER_THEMES = new Set<ReaderThemeName>(["dark", "high-contrast", "catppuccin-mocha", "nord"]);
+export const DARK_READER_THEMES = new Set<ReaderThemeName>([
+  "dark",
+  "high-contrast",
+  "catppuccin-mocha",
+  "nord",
+  "ember",
+]);
 
 export const DEFAULT_READER_THEME_NAME: ReaderThemeName = "light";
 export const DEFAULT_READER_FONT_SIZE = 17;

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import AddFeedDialog from "@/components/AddFeedDialog";
+import DistillLogo from "@/components/DistillLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -380,7 +381,10 @@ export default function FeedSidebar({
           collapsed && "md:justify-center md:px-2",
         )}
       >
-        <span className={cn("text-sm font-semibold", collapsed && "md:hidden")}>Distill</span>
+        <div className={cn("flex min-w-0 items-center gap-1.5 text-[var(--surface-fg)]", collapsed && "md:hidden")}>
+          <DistillLogo className="size-5 shrink-0" />
+          <span className="truncate text-sm font-semibold">Distill</span>
+        </div>
         {onToggleCollapse && (
           <button
             type="button"

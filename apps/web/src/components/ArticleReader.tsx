@@ -237,93 +237,91 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
       style={{ backgroundColor: theme.background }}
     >
       {playback.audioElement}
+      <div className="flex shrink-0 items-center justify-between gap-1 border-b border-[var(--surface-border)] px-6 py-3">
+        {onBack ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 md:hidden"
+            title="Back to articles"
+            onClick={onBack}
+          >
+            <ArrowLeftIcon className="size-4" style={{ color: theme.muted }} />
+          </Button>
+        ) : (
+          <span />
+        )}
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title="Speed-read"
+            onClick={() => setIsRsvpOpen(true)}
+          >
+            <ZapIcon className="size-4" style={{ color: theme.muted }} />
+          </Button>
+          <SummaryToggleButton
+            articleId={article.id}
+            open={summaryOpen}
+            onToggle={() => setSummaryOpen((o) => !o)}
+            onGenerated={() => setSummaryOpen(true)}
+            mutedColor={theme.muted}
+          />
+          <ListenSourceDialog playback={playback} mutedColor={theme.muted} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title={isRead ? "Mark unread" : "Mark read"}
+            onClick={() => markRead.mutate({ id: article.id, read: !isRead })}
+          >
+            {isRead ? (
+              <MailOpenIcon className="size-4" style={{ color: theme.muted }} />
+            ) : (
+              <MailIcon className="size-4 text-sky-500" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title={article.starred ? "Unstar" : "Star"}
+            onClick={() => starArticle.mutate({ id: article.id, starred: !article.starred })}
+          >
+            <StarIcon
+              className={cn("size-4", article.starred && "text-amber-500")}
+              style={{ color: article.starred ? undefined : theme.muted }}
+              fill={article.starred ? "currentColor" : "none"}
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title={isCleared ? "Restore" : "Remove from feed"}
+            onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
+          >
+            <Trash2Icon
+              className={cn("size-4", isCleared && "text-destructive")}
+              style={{ color: isCleared ? undefined : theme.muted }}
+            />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-8" title="Open original" asChild>
+            <a href={article.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLinkIcon className="size-4" style={{ color: theme.muted }} />
+            </a>
+          </Button>
+        </div>
+      </div>
       <div className="flex-1 overflow-y-auto">
         <article
           className="mx-auto max-w-[66ch] px-6 py-8"
           style={{ fontSize, fontFamily: fontStack }}
         >
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-1">
-              {onBack ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 shrink-0 md:hidden"
-                  title="Back to articles"
-                  onClick={onBack}
-                >
-                  <ArrowLeftIcon className="size-4" style={{ color: theme.muted }} />
-                </Button>
-              ) : (
-                <span />
-              )}
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  title="Speed-read"
-                  onClick={() => setIsRsvpOpen(true)}
-                >
-                  <ZapIcon className="size-4" style={{ color: theme.muted }} />
-                </Button>
-                <SummaryToggleButton
-                  articleId={article.id}
-                  open={summaryOpen}
-                  onToggle={() => setSummaryOpen((o) => !o)}
-                  onGenerated={() => setSummaryOpen(true)}
-                  mutedColor={theme.muted}
-                />
-                <ListenSourceDialog playback={playback} mutedColor={theme.muted} />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  title={isRead ? "Mark unread" : "Mark read"}
-                  onClick={() => markRead.mutate({ id: article.id, read: !isRead })}
-                >
-                  {isRead ? (
-                    <MailOpenIcon className="size-4" style={{ color: theme.muted }} />
-                  ) : (
-                    <MailIcon className="size-4 text-sky-500" />
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  title={article.starred ? "Unstar" : "Star"}
-                  onClick={() => starArticle.mutate({ id: article.id, starred: !article.starred })}
-                >
-                  <StarIcon
-                    className={cn("size-4", article.starred && "text-amber-500")}
-                    style={{ color: article.starred ? undefined : theme.muted }}
-                    fill={article.starred ? "currentColor" : "none"}
-                  />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  title={isCleared ? "Restore" : "Remove from feed"}
-                  onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
-                >
-                  <Trash2Icon
-                    className={cn("size-4", isCleared && "text-destructive")}
-                    style={{ color: isCleared ? undefined : theme.muted }}
-                  />
-                </Button>
-                <Button variant="ghost" size="icon" className="size-8" title="Open original" asChild>
-                  <a href={article.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLinkIcon className="size-4" style={{ color: theme.muted }} />
-                  </a>
-                </Button>
-              </div>
-            </div>
-            <h1 className="min-w-0 text-2xl font-semibold" style={{ color: theme.color }}>
-              {article.title}
-            </h1>
-          </div>
+          <h1 className="min-w-0 text-2xl font-semibold" style={{ color: theme.color }}>
+            {article.title}
+          </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" style={{ color: theme.muted }}>
             <span>{article.feedTitle}</span>
             {article.author && <span>· {article.author}</span>}

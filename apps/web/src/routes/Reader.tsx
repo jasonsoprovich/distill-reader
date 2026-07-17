@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // which, so phone/tablet gets a real single-pane navigable view (PLAN §13
 // Phase 8) instead of three squeezed-together columns. Unused at md+, where
 // all three panes show simultaneously regardless of this state.
-type MobileView = "sidebar" | "list" | "reader";
+export type MobileView = "sidebar" | "list" | "reader";
 
 const SIDEBAR_COLLAPSED_KEY = "distill:sidebarCollapsed";
 
@@ -19,10 +19,26 @@ function loadCollapsed(key: string): boolean {
   return window.localStorage.getItem(key) === "true";
 }
 
-export default function Reader() {
-  const [selection, setSelection] = useState<Selection>({ kind: "all" });
-  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<MobileView>("sidebar");
+interface ReaderProps {
+  // Owned by App, not local state here — a round trip to /settings and
+  // back unmounts/remounts this component, and state that lived here would
+  // reset with it. See App.tsx for the full reasoning.
+  selection: Selection;
+  onSelectionChange: (next: Selection) => void;
+  selectedArticleId: string | null;
+  onSelectedArticleIdChange: (next: string | null) => void;
+  mobileView: MobileView;
+  onMobileViewChange: (next: MobileView) => void;
+}
+
+export default function Reader({
+  selection,
+  onSelectionChange,
+  selectedArticleId,
+  onSelectedArticleIdChange,
+  mobileView,
+  onMobileViewChange,
+}: ReaderProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => loadCollapsed(SIDEBAR_COLLAPSED_KEY));
   const { vars } = useReaderTheme();
 
@@ -43,9 +59,9 @@ export default function Reader() {
         className={cn("md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
         selection={selection}
         onSelect={(next) => {
-          setSelection(next);
-          setSelectedArticleId(null);
-          setMobileView("list");
+          onSelectionChange(next);
+          onSelectedArticleIdChange(null);
+          onMobileViewChange("list");
         }}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapsed}
@@ -55,15 +71,15 @@ export default function Reader() {
         selection={selection}
         selectedArticleId={selectedArticleId}
         onSelectArticle={(id) => {
-          setSelectedArticleId(id);
-          setMobileView("reader");
+          onSelectedArticleIdChange(id);
+          onMobileViewChange("reader");
         }}
-        onBack={() => setMobileView("sidebar")}
+        onBack={() => onMobileViewChange("sidebar")}
       />
       <ArticleReader
         className={cn("md:flex", mobileView === "reader" ? "flex" : "hidden")}
         articleId={selectedArticleId}
-        onBack={() => setMobileView("list")}
+        onBack={() => onMobileViewChange("list")}
       />
     </div>
   );
