@@ -15,7 +15,10 @@ const VOLUME_STORAGE_KEY = "distill:ttsVolume";
 function loadStoredVolume(): number {
   if (typeof window === "undefined") return 1;
   const stored = Number(window.localStorage.getItem(VOLUME_STORAGE_KEY));
-  return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 1;
+  // A stored 0 is excluded on purpose — there's no separate mute control, so
+  // treating 0 as a legitimate persisted value meant one accidental drag to
+  // silent became a permanent, confusing default for every future article.
+  return Number.isFinite(stored) && stored > 0 && stored <= 1 ? stored : 1;
 }
 
 export interface UseTtsPlayback {

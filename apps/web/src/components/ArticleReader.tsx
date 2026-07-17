@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftIcon,
   ChevronDownIcon,
+  ExternalLinkIcon,
   MailIcon,
   MailOpenIcon,
   SparklesIcon,
   StarIcon,
   Trash2Icon,
-  Volume2Icon,
   ZapIcon,
 } from "lucide-react";
 import type { HighlightWord } from "@distill/shared";
@@ -256,19 +256,7 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
               >
                 <ZapIcon className="size-4" style={{ color: theme.muted }} />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                title="Listen"
-                disabled={playback.isGenerating}
-                onClick={playback.openModal}
-              >
-                <Volume2Icon
-                  className={cn("size-4", playback.isPlaying && "text-emerald-600")}
-                  style={playback.isPlaying ? undefined : { color: theme.muted }}
-                />
-              </Button>
+              <ListenSourceDialog playback={playback} mutedColor={theme.muted} />
               <Button
                 variant="ghost"
                 size="icon"
@@ -307,6 +295,11 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
                   style={{ color: isCleared ? undefined : theme.muted }}
                 />
               </Button>
+              <Button variant="ghost" size="icon" className="size-8" title="Open original" asChild>
+                <a href={article.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLinkIcon className="size-4" style={{ color: theme.muted }} />
+                </a>
+              </Button>
             </div>
           </div>
           <h1 className="min-w-0 text-2xl font-semibold" style={{ color: theme.color }}>
@@ -317,26 +310,16 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
           <span>{article.feedTitle}</span>
           {article.author && <span>· {article.author}</span>}
           {article.publishedAt && <span>· {new Date(article.publishedAt).toLocaleDateString()}</span>}
-          <span className="ml-auto flex items-center gap-3">
-            {article.discussionUrl && (
-              <a
-                href={article.discussionUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs underline underline-offset-2"
-              >
-                View discussion
-              </a>
-            )}
+          {article.discussionUrl && (
             <a
-              href={article.url}
+              href={article.discussionUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs underline underline-offset-2"
+              className="ml-auto text-xs underline underline-offset-2"
             >
-              Open original
+              View discussion
             </a>
-          </span>
+          )}
         </div>
 
         {article.extractionStatus !== "ok" && (
@@ -381,7 +364,6 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
       </article>
 
       <AudioBar playback={playback} />
-      <ListenSourceDialog playback={playback} />
 
       {isRsvpOpen && (
         <RsvpReader articleId={article.id} fullText={article.contentText} onExit={() => setIsRsvpOpen(false)} />

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
+  ArrowDownWideNarrowIcon,
   ArrowLeftIcon,
+  ArrowUpNarrowWideIcon,
   CheckCheckIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -8,6 +10,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
+import type { ArticleSortDirection } from "@distill/shared";
 import { Button } from "@/components/ui/button";
 import { useArticles, useClearArticle, useMarkRead, useReadAll, useStarArticle } from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
@@ -21,6 +24,13 @@ interface ArticleListProps {
   className?: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+}
+
+const SORT_DIR_STORAGE_KEY = "distill:articleSortDir";
+
+function loadSortDir(): ArticleSortDirection {
+  if (typeof window === "undefined") return "desc";
+  return window.localStorage.getItem(SORT_DIR_STORAGE_KEY) === "asc" ? "asc" : "desc";
 }
 
 function formatDate(iso: string | null): string {
@@ -38,10 +48,12 @@ export default function ArticleList({
   onToggleCollapse,
 }: ArticleListProps) {
   const { feedId, tagId, view } = selectionToArticlesParams(selection);
+  const [sortDir, setSortDir] = useState<ArticleSortDirection>(loadSortDir);
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useArticles(
     feedId,
     tagId,
     view,
+    sortDir,
   );
   const markRead = useMarkRead();
   const starArticle = useStarArticle();
@@ -56,6 +68,12 @@ export default function ArticleList({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkPending, setIsBulkPending] = useState(false);
   const selectMode = selectedIds.size > 0;
+
+  function toggleSortDir() {
+    const next = sortDir === "desc" ? "asc" : "desc";
+    setSortDir(next);
+    window.localStorage.setItem(SORT_DIR_STORAGE_KEY, next);
+  }
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -91,86 +109,103 @@ export default function ArticleList({
     >
       <div
         className={cn(
-          "flex items-center justify-between gap-2 border-b border-[var(--surface-border)] px-4 py-3",
+          "flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--surface-border)] px-4",
           collapsed && "md:justify-center md:px-2",
         )}
       >
-        <div className={cn("flex flex-1 items-center justify-between gap-2", collapsed && "md:hidden")}>
+        <div className={cn("flex min-w-0 flex-1 items-center justify-between gap-2", collapsed && "md:hidden")}>
           {selectMode ? (
             <>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-6"
+                  className="size-6 shrink-0"
                   title="Clear selection"
                   onClick={() => setSelectedIds(new Set())}
                 >
                   <XIcon className="size-4 text-[var(--surface-muted)]" />
                 </Button>
-                <span className="text-xs font-medium text-[var(--surface-muted)]">{selectedIds.size} selected</span>
+                <span className="truncate text-xs font-medium text-[var(--surface-muted)]">
+                  {selectedIds.size} selected
+                </span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-0.5">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  size="icon"
+                  className="size-7"
+                  title="Mark read"
                   disabled={isBulkPending}
                   onClick={() => runBulk((id) => markRead.mutateAsync({ id, read: true }))}
                 >
-                  <CheckCheckIcon className="size-3.5" />
-                  Mark read
+                  <CheckCheckIcon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  size="icon"
+                  className="size-7"
+                  title="Star"
                   disabled={isBulkPending}
                   onClick={() => runBulk((id) => starArticle.mutateAsync({ id, starred: true }))}
                 >
-                  <StarIcon className="size-3.5" />
-                  Star
+                  <StarIcon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                  size="icon"
+                  className="size-7"
+                  title="Remove"
                   disabled={isBulkPending}
                   onClick={() => runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))}
                 >
-                  <Trash2Icon className="size-3.5" />
-                  Remove
+                  <Trash2Icon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 {onBack && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 md:hidden"
+                    className="size-6 shrink-0 md:hidden"
                     title="Back to feeds"
                     onClick={onBack}
                   >
                     <ArrowLeftIcon className="size-4 text-[var(--surface-muted)]" />
                   </Button>
                 )}
-                <span className="text-xs font-medium text-[var(--surface-muted)]">Articles</span>
+                <span className="truncate text-xs font-medium text-[var(--surface-muted)]">Articles</span>
               </div>
-              {canMarkAllRead && (
+              <div className="flex shrink-0 items-center gap-1">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
-                  onClick={() => readAll.mutate({ feedId, tagId })}
-                  disabled={readAll.isPending || articles.length === 0}
+                  size="icon"
+                  className="size-6 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+                  title={sortDir === "desc" ? "Sorted newest first — click for oldest first" : "Sorted oldest first — click for newest first"}
+                  onClick={toggleSortDir}
                 >
-                  <CheckCheckIcon className="size-3.5" />
-                  Mark all read
+                  {sortDir === "desc" ? (
+                    <ArrowDownWideNarrowIcon className="size-3.5" />
+                  ) : (
+                    <ArrowUpNarrowWideIcon className="size-3.5" />
+                  )}
                 </Button>
-              )}
+                {canMarkAllRead && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+                    onClick={() => readAll.mutate({ feedId, tagId })}
+                    disabled={readAll.isPending || articles.length === 0}
+                  >
+                    <CheckCheckIcon className="size-3.5" />
+                    Mark all read
+                  </Button>
+                )}
+              </div>
             </>
           )}
         </div>

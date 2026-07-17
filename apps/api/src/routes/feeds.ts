@@ -1,11 +1,39 @@
+import { unlink } from "node:fs/promises";
+import path from "node:path";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { article, articleState, auditLog, db, feed, feedTag, tag } from "@distill/db";
+import { article, articleState, auditLog, db, feed, feedTag, tag, ttsAudio } from "@distill/db";
 import { discoverFeed, ingestFeed, signImageUrl } from "@distill/extract";
 import { createFeedSchema, patchFeedSchema, previewFeedSchema } from "@distill/shared";
 import type { FeedDTO, TagDTO } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
+
+function audioStoragePath(): string {
+  return process.env.AUDIO_STORAGE_PATH ?? "/data/audio";
+}
+
+// Deleting a feed cascades the DB rows for its articles and their tts_audio
+// entries (onDelete: cascade), but not the audio files those rows point to
+// on disk — same gap the retention purge job works around (worker/jobs/purge.ts).
+// Read the storage keys before the delete cascades the rows out from under us.
+async function deleteFeedAudioFiles(feedId: string): Promise<void> {
+  const rows = await db
+    .select({ storageKey: ttsAudio.storageKey })
+    .from(ttsAudio)
+    .innerJoin(article, eq(ttsAudio.articleId, article.id))
+    .where(eq(article.feedId, feedId));
+
+  await Promise.all(
+    rows.map(async (row) => {
+      try {
+        await unlink(path.join(audioStoragePath(), row.storageKey));
+      } catch (err) {
+        console.error(`[feeds] failed to delete audio file "${row.storageKey}"`, err);
+      }
+    }),
+  );
+}
 
 export const feedsRouter = new Hono<{ Variables: AuthVariables }>();
 feedsRouter.use("*", requireAuth);
@@ -174,6 +202,9 @@ feedsRouter.patch("/:id", async (c) => {
 feedsRouter.delete("/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+
+  await deleteFeedAudioFiles(id);
+
   const result = await db
     .delete(feed)
     .where(and(eq(feed.id, id), eq(feed.userId, userId)))

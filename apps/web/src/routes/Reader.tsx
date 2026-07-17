@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ArticleList from "@/components/ArticleList";
 import ArticleReader from "@/components/ArticleReader";
+import CollapsedRail from "@/components/CollapsedRail";
 import FeedSidebar from "@/components/FeedSidebar";
 import { useReaderTheme } from "@/lib/reader-theme";
 import type { Selection } from "@/lib/selection";
@@ -26,6 +27,7 @@ export default function Reader() {
   const [mobileView, setMobileView] = useState<MobileView>("sidebar");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => loadCollapsed(SIDEBAR_COLLAPSED_KEY));
   const [listCollapsed, setListCollapsed] = useState(() => loadCollapsed(LIST_COLLAPSED_KEY));
+  const bothCollapsed = sidebarCollapsed && listCollapsed;
   const { vars } = useReaderTheme();
 
   function toggleSidebarCollapsed() {
@@ -50,7 +52,7 @@ export default function Reader() {
       style={vars}
     >
       <FeedSidebar
-        className={cn("md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
+        className={cn(bothCollapsed ? "md:hidden" : "md:flex", mobileView === "sidebar" ? "flex" : "hidden")}
         selection={selection}
         onSelect={(next) => {
           setSelection(next);
@@ -61,7 +63,7 @@ export default function Reader() {
         onToggleCollapse={toggleSidebarCollapsed}
       />
       <ArticleList
-        className={cn("md:flex", mobileView === "list" ? "flex" : "hidden")}
+        className={cn(bothCollapsed ? "md:hidden" : "md:flex", mobileView === "list" ? "flex" : "hidden")}
         selection={selection}
         selectedArticleId={selectedArticleId}
         onSelectArticle={(id) => {
@@ -72,6 +74,9 @@ export default function Reader() {
         collapsed={listCollapsed}
         onToggleCollapse={toggleListCollapsed}
       />
+      {bothCollapsed && (
+        <CollapsedRail onExpandSidebar={toggleSidebarCollapsed} onExpandList={toggleListCollapsed} />
+      )}
       <ArticleReader
         className={cn("md:flex", mobileView === "reader" ? "flex" : "hidden")}
         articleId={selectedArticleId}

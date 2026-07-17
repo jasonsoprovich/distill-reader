@@ -11,11 +11,14 @@ import type {
   ArticleDetailDTO,
   ArticleListItemDTO,
   ArticlesPage,
+  ArticleSortDirection,
   ArticleView,
   CreateCredentialInput,
   CreateFeedInput,
+  FeedDTO,
   PatchFeedInput,
   PatchSettingsInput,
+  PatchTagInput,
   SummaryProviderKind,
   TtsProviderKind,
   TtsSource,
@@ -25,8 +28,8 @@ import { toast } from "./toast";
 
 export const feedsQueryKey = ["feeds"] as const;
 export const tagsQueryKey = ["tags"] as const;
-export const articlesQueryKey = (feedId?: string, tagId?: string, view?: ArticleView) =>
-  ["articles", { feedId, tagId, view }] as const;
+export const articlesQueryKey = (feedId?: string, tagId?: string, view?: ArticleView, sortDir?: ArticleSortDirection) =>
+  ["articles", { feedId, tagId, view, sortDir }] as const;
 export const articleQueryKey = (id: string) => ["article", id] as const;
 export const summaryQueryKey = (articleId: string) => ["summary", articleId] as const;
 export const ttsAudioQueryKey = (articleId: string, source: TtsSource = "full") =>
@@ -92,6 +95,31 @@ export function usePollFeed() {
   });
 }
 
+// No bulk-poll endpoint exists server-side, so this fires one poll per feed
+// in parallel and tolerates individual failures (a dead feed shouldn't stop
+// the rest from refreshing) — mirrors ArticleList's runBulk pattern.
+export function useRefreshAllFeeds() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (feeds: FeedDTO[]) => {
+      const results = await Promise.allSettled(feeds.map((f) => api.pollFeed(f.id)));
+      const inserted = results.reduce(
+        (sum, r) => sum + (r.status === "fulfilled" ? r.value.articlesInserted : 0),
+        0,
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      return { inserted, failed };
+    },
+    onSuccess: ({ inserted, failed }) => {
+      queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      const base = inserted > 0 ? `Refreshed — ${inserted} new article${inserted === 1 ? "" : "s"}.` : "Refreshed — no new articles.";
+      toast(failed > 0 ? `${base} ${failed} feed${failed === 1 ? "" : "s"} failed.` : base, failed > 0 ? "error" : "default");
+    },
+    onError: () => toast("Couldn't refresh feeds — try again.", "error"),
+  });
+}
+
 export function useTags() {
   return useQuery({ queryKey: tagsQueryKey, queryFn: api.listTags });
 }
@@ -105,10 +133,31 @@ export function useCreateTag() {
   });
 }
 
-export function useArticles(feedId?: string, tagId?: string, view?: ArticleView) {
+export function useUpdateTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: PatchTagInput }) => api.updateTag(id, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: tagsQueryKey }),
+    onError: () => toast("Couldn't update that tag — try again.", "error"),
+  });
+}
+
+export function useDeleteTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteTag(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tagsQueryKey });
+      queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+    },
+    onError: () => toast("Couldn't delete that tag — try again.", "error"),
+  });
+}
+
+export function useArticles(feedId?: string, tagId?: string, view?: ArticleView, sortDir?: ArticleSortDirection) {
   return useInfiniteQuery({
-    queryKey: articlesQueryKey(feedId, tagId, view),
-    queryFn: ({ pageParam }) => api.listArticles({ feedId, tagId, view, cursor: pageParam }),
+    queryKey: articlesQueryKey(feedId, tagId, view, sortDir),
+    queryFn: ({ pageParam }) => api.listArticles({ feedId, tagId, view, sortDir, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });

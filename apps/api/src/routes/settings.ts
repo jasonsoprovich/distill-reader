@@ -41,10 +41,23 @@ settingsRouter.patch("/", async (c) => {
   const body = patchSettingsSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
 
-  await ensureSettingsRow(userId);
-  const [row] = Object.keys(body.data).length
-    ? await db.update(userSettings).set(body.data).where(eq(userSettings.userId, userId)).returning()
-    : await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+  const existing = await ensureSettingsRow(userId);
+
+  // readerTheme/rsvpPrefs/ttsPrefs are jsonb columns meant to be merge-patched
+  // (each field schema is all-optional for exactly this reason) — but
+  // `db.update().set()` replaces a jsonb column's value wholesale rather than
+  // merging it. Left as a plain passthrough, a patch touching only one field
+  // (e.g. { ttsPrefs: { source } } after picking Listen) would silently wipe
+  // every other previously-saved field in that same column.
+  const { readerTheme, rsvpPrefs, ttsPrefs, ...rest } = body.data;
+  const patch: Record<string, unknown> = { ...rest };
+  if (readerTheme) patch.readerTheme = { ...(existing.readerTheme as object), ...readerTheme };
+  if (rsvpPrefs) patch.rsvpPrefs = { ...(existing.rsvpPrefs as object), ...rsvpPrefs };
+  if (ttsPrefs) patch.ttsPrefs = { ...(existing.ttsPrefs as object), ...ttsPrefs };
+
+  const [row] = Object.keys(patch).length
+    ? await db.update(userSettings).set(patch).where(eq(userSettings.userId, userId)).returning()
+    : [existing];
 
   return c.json(toDTO(row));
 });

@@ -1,6 +1,7 @@
 import type {
   ArticleDetailDTO,
   ArticlesPage,
+  ArticleSortDirection,
   ArticleView,
   CreateCredentialInput,
   CreateFeedInput,
@@ -10,6 +11,7 @@ import type {
   FeedPollResultDTO,
   PatchFeedInput,
   PatchSettingsInput,
+  PatchTagInput,
   SettingsDTO,
   SummaryDTO,
   SummaryProviderKind,
@@ -49,6 +51,7 @@ export interface ListArticlesParams {
   tagId?: string;
   view?: ArticleView;
   cursor?: string;
+  sortDir?: ArticleSortDirection;
 }
 
 export interface ReadAllParams {
@@ -70,6 +73,9 @@ export const api = {
   listTags: () => apiFetch<TagDTO[]>("/tags"),
   createTag: (input: { name: string; color?: string | null }) =>
     apiFetch<TagDTO>("/tags", { method: "POST", body: JSON.stringify(input) }),
+  updateTag: (id: string, patch: PatchTagInput) =>
+    apiFetch<TagDTO>(`/tags/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteTag: (id: string) => apiFetch<void>(`/tags/${id}`, { method: "DELETE" }),
 
   listArticles: (params: ListArticlesParams) => {
     const search = new URLSearchParams();
@@ -77,6 +83,7 @@ export const api = {
     if (params.tagId) search.set("tagId", params.tagId);
     if (params.view) search.set("view", params.view);
     if (params.cursor) search.set("cursor", params.cursor);
+    if (params.sortDir) search.set("sortDir", params.sortDir);
     const qs = search.toString();
     return apiFetch<ArticlesPage>(`/articles${qs ? `?${qs}` : ""}`);
   },

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZIcon,
-  ArrowDownWideNarrowIcon,
-  ArrowUpNarrowWideIcon,
+  ArrowDownZAIcon,
+  LogOutIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PencilIcon,
+  RefreshCcwDotIcon,
   RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
@@ -26,10 +27,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
-import { useCreateTag, useDeleteFeed, useFeeds, usePollFeed, useTags, useUpdateFeed } from "@/lib/hooks";
+import {
+  useCreateTag,
+  useDeleteFeed,
+  useDeleteTag,
+  useFeeds,
+  usePollFeed,
+  useRefreshAllFeeds,
+  useTags,
+  useUpdateFeed,
+  useUpdateTag,
+} from "@/lib/hooks";
 import type { Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
-import type { ArticleView, FeedDTO } from "@distill/shared";
+import type { ArticleView, FeedDTO, TagDTO } from "@distill/shared";
 
 interface FeedSidebarProps {
   selection: Selection;
@@ -45,37 +56,29 @@ const SMART_VIEWS: { view: ArticleView; label: string }[] = [
   { view: "cleared", label: "Removed" },
 ];
 
-type FeedSortMode = "title" | "date-desc" | "date-asc";
+type FeedSortMode = "title-asc" | "title-desc";
 
 const FEED_SORT_STORAGE_KEY = "distill:feedSortMode";
 
 const FEED_SORT_CYCLE: Record<FeedSortMode, FeedSortMode> = {
-  title: "date-desc",
-  "date-desc": "date-asc",
-  "date-asc": "title",
+  "title-asc": "title-desc",
+  "title-desc": "title-asc",
 };
 
 const FEED_SORT_LABELS: Record<FeedSortMode, string> = {
-  title: "Sorted A–Z — click for newest first",
-  "date-desc": "Sorted newest first — click for oldest first",
-  "date-asc": "Sorted oldest first — click to sort A–Z",
+  "title-asc": "Sorted A–Z — click for Z–A",
+  "title-desc": "Sorted Z–A — click for A–Z",
 };
 
 function loadFeedSortMode(): FeedSortMode {
-  if (typeof window === "undefined") return "title";
+  if (typeof window === "undefined") return "title-asc";
   const stored = window.localStorage.getItem(FEED_SORT_STORAGE_KEY);
-  return stored === "date-desc" || stored === "date-asc" || stored === "title" ? stored : "title";
+  return stored === "title-desc" ? "title-desc" : "title-asc";
 }
 
 function sortFeeds(feeds: FeedDTO[], mode: FeedSortMode): FeedDTO[] {
   const sorted = [...feeds];
-  if (mode === "date-desc") {
-    sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } else if (mode === "date-asc") {
-    sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  } else {
-    sorted.sort((a, b) => a.title.localeCompare(b.title));
-  }
+  sorted.sort((a, b) => (mode === "title-desc" ? b.title.localeCompare(a.title) : a.title.localeCompare(b.title)));
   return sorted;
 }
 
@@ -230,6 +233,113 @@ function DeleteFeedButton({ feed, onDeleted }: { feed: FeedDTO; onDeleted: () =>
   );
 }
 
+function EditTagButton({ tag }: { tag: TagDTO }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(tag.name);
+  const [error, setError] = useState<string | null>(null);
+  const updateTag = useUpdateTag();
+
+  useEffect(() => {
+    if (open) setName(tag.name);
+  }, [open, tag.name]);
+
+  async function handleSave() {
+    setError(null);
+    if (!name.trim()) return;
+    try {
+      await updateTag.mutateAsync({ id: tag.id, patch: { name: name.trim() } });
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not rename that tag");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-[var(--surface-fg)] group-hover:inline-flex"
+          title="Rename tag"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <PencilIcon className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename tag</DialogTitle>
+          <DialogDescription>This renames "{tag.name}" everywhere it's used.</DialogDescription>
+        </DialogHeader>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSave()}
+          autoFocus
+        />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={!name.trim() || updateTag.isPending}>
+            {updateTag.isPending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteTagButton({ tag, onDeleted }: { tag: TagDTO; onDeleted: () => void }) {
+  const [open, setOpen] = useState(false);
+  const deleteTag = useDeleteTag();
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-destructive group-hover:inline-flex"
+          title="Delete tag"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Trash2Icon className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete "{tag.name}"?</DialogTitle>
+          <DialogDescription>
+            This removes the tag from every feed it's applied to. The feeds and their articles are unaffected.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteTag.isPending}
+            onClick={() =>
+              deleteTag.mutate(tag.id, {
+                onSuccess: () => {
+                  setOpen(false);
+                  onDeleted();
+                },
+              })
+            }
+          >
+            {deleteTag.isPending ? "Deleting…" : "Delete tag"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function navButtonClass(active: boolean) {
   return cn(
     "flex w-full items-center rounded-md px-2 py-1.5 text-sm",
@@ -247,6 +357,7 @@ export default function FeedSidebar({
   const { data: feeds = [], isLoading, isError, refetch: refetchFeeds } = useFeeds();
   const { data: tags = [] } = useTags();
   const pollFeed = usePollFeed();
+  const refreshAllFeeds = useRefreshAllFeeds();
   const [sortMode, setSortMode] = useState<FeedSortMode>(loadFeedSortMode);
   const sortedFeeds = useMemo(() => sortFeeds(feeds, sortMode), [feeds, sortMode]);
 
@@ -256,8 +367,7 @@ export default function FeedSidebar({
     window.localStorage.setItem(FEED_SORT_STORAGE_KEY, next);
   }
 
-  const SortIcon =
-    sortMode === "title" ? ArrowDownAZIcon : sortMode === "date-desc" ? ArrowDownWideNarrowIcon : ArrowUpNarrowWideIcon;
+  const SortIcon = sortMode === "title-asc" ? ArrowDownAZIcon : ArrowDownZAIcon;
 
   return (
     <aside
@@ -269,27 +379,11 @@ export default function FeedSidebar({
     >
       <div
         className={cn(
-          "flex items-center justify-between border-b border-[var(--surface-border)] px-4 py-3",
+          "flex h-14 shrink-0 items-center justify-between border-b border-[var(--surface-border)] px-4",
           collapsed && "md:justify-center md:px-2",
         )}
       >
         <span className={cn("text-sm font-semibold", collapsed && "md:hidden")}>Distill</span>
-        <div className={cn("flex items-center gap-3", collapsed && "md:hidden")}>
-          <Link
-            to="/settings"
-            title="Settings"
-            className="text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
-          >
-            <SettingsIcon className="size-4" />
-          </Link>
-          <button
-            type="button"
-            onClick={() => authClient.signOut()}
-            className="text-xs text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
-          >
-            Sign out
-          </button>
-        </div>
         {onToggleCollapse && (
           <button
             type="button"
@@ -321,14 +415,22 @@ export default function FeedSidebar({
           <>
             <div className="mt-4 px-2 pb-1 text-xs font-medium text-[var(--surface-muted)]">Tags</div>
             {tags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => onSelect({ kind: "tag", id: tag.id })}
-                className={navButtonClass(selection.kind === "tag" && selection.id === tag.id)}
-              >
-                {tag.name}
-              </button>
+              <div key={tag.id} className="group flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onSelect({ kind: "tag", id: tag.id })}
+                  className={cn("flex-1", navButtonClass(selection.kind === "tag" && selection.id === tag.id))}
+                >
+                  {tag.name}
+                </button>
+                <EditTagButton tag={tag} />
+                <DeleteTagButton
+                  tag={tag}
+                  onDeleted={() => {
+                    if (selection.kind === "tag" && selection.id === tag.id) onSelect({ kind: "all" });
+                  }}
+                />
+              </div>
             ))}
           </>
         )}
@@ -336,6 +438,16 @@ export default function FeedSidebar({
         <div className="mt-4 flex items-center justify-between px-2 pb-1">
           <span className="text-xs font-medium text-[var(--surface-muted)]">Feeds</span>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+              title="Refresh all feeds"
+              onClick={() => refreshAllFeeds.mutate(feeds)}
+              disabled={refreshAllFeeds.isPending || feeds.length === 0}
+            >
+              <RefreshCcwDotIcon className={cn("size-3.5", refreshAllFeeds.isPending && "animate-spin")} />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -404,6 +516,30 @@ export default function FeedSidebar({
           </div>
         ))}
       </nav>
+
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between border-t border-[var(--surface-border)] px-4 py-2.5",
+          collapsed && "md:flex-col md:gap-2 md:px-2",
+        )}
+      >
+        <Link
+          to="/settings"
+          title="Settings"
+          className="flex items-center gap-2 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+        >
+          <SettingsIcon className="size-4 shrink-0" />
+          <span className={cn("text-sm", collapsed && "md:hidden")}>Settings</span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => authClient.signOut()}
+          title="Sign out"
+          className="text-xs text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
+        >
+          {collapsed ? <LogOutIcon className="hidden size-4 md:inline-flex" /> : "Sign out"}
+        </button>
+      </div>
     </aside>
   );
 }

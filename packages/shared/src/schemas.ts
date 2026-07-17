@@ -48,12 +48,16 @@ export type PatchTagInput = z.infer<typeof patchTagSchema>;
 export const ARTICLE_VIEWS = ["unread", "starred", "cleared"] as const;
 export type ArticleView = (typeof ARTICLE_VIEWS)[number];
 
+export const ARTICLE_SORT_DIRECTIONS = ["desc", "asc"] as const;
+export type ArticleSortDirection = (typeof ARTICLE_SORT_DIRECTIONS)[number];
+
 export const listArticlesQuerySchema = z.object({
   feedId: z.uuid().optional(),
   tagId: z.uuid().optional(),
   view: z.enum(ARTICLE_VIEWS).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
+  sortDir: z.enum(ARTICLE_SORT_DIRECTIONS).default("desc"),
 });
 export type ListArticlesQuery = z.infer<typeof listArticlesQuerySchema>;
 

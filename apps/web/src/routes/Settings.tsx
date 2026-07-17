@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeftIcon, TrashIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, SearchIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   CREDENTIAL_PROVIDERS,
@@ -14,10 +14,12 @@ import type {
   ReaderThemeName,
   SummaryProviderKind,
   TtsProviderKind,
+  TtsVoiceDTO,
 } from "@distill/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { ApiError } from "@/lib/api";
 import {
@@ -39,7 +41,7 @@ import {
   READER_THEME_STYLES,
   useReaderTheme,
 } from "@/lib/reader-theme";
-import { cn } from "@/lib/utils";
+import { cn, fuzzyMatch } from "@/lib/utils";
 
 const KEYED_PROVIDERS = new Set<CredentialProviderKind>(["openai", "anthropic", "elevenlabs"]);
 
@@ -255,7 +257,105 @@ const VOICE_CATEGORY_GROUP_LABELS: Record<string, string> = {
   generated: "Your voices",
   professional: "Your voices",
   premade: "ElevenLabs voices",
+  shared: "Voice library",
 };
+
+// A plain <select> stopped being usable once the voice list grew from a
+// couple dozen entries (the account's own voices) to potentially hundreds
+// (once the shared voice library is merged in — see elevenlabs.ts) — this
+// gives it a search box instead of a scroll bar.
+function VoiceCombobox({
+  voices,
+  value,
+  onChange,
+}: {
+  voices: TtsVoiceDTO[];
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selected = voices.find((v) => v.id === value);
+  const hasGroups = voices.some((v) => v.category);
+
+  const groups = useMemo(() => {
+    const filtered = voices.filter((v) => fuzzyMatch(query, v.name));
+    if (!hasGroups) return [{ label: null as string | null, voices: filtered }];
+    const byLabel = new Map<string, TtsVoiceDTO[]>();
+    for (const v of filtered) {
+      const label = VOICE_CATEGORY_GROUP_LABELS[v.category ?? ""] ?? "Other voices";
+      (byLabel.get(label) ?? byLabel.set(label, []).get(label)!).push(v);
+    }
+    return [...byLabel.entries()].map(([label, list]) => ({ label, voices: list }));
+  }, [voices, query, hasGroups]);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button type="button" className={cn(selectClass(), "flex items-center justify-between gap-2")}>
+          <span className="truncate">{selected?.name ?? "Default voice"}</span>
+          <ChevronsUpDownIcon className="size-3.5 shrink-0 text-[var(--surface-muted)]" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+        <div className="flex items-center gap-2 border-b border-[var(--surface-border)] px-3 py-2">
+          <SearchIcon className="size-3.5 shrink-0 text-[var(--surface-muted)]" />
+          <input
+            autoFocus
+            placeholder="Search voices…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full bg-transparent text-sm outline-none placeholder:text-[var(--surface-muted)]"
+          />
+        </div>
+        <div className="max-h-72 overflow-y-auto p-1">
+          <button
+            type="button"
+            onClick={() => {
+              onChange(undefined);
+              setOpen(false);
+            }}
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"
+          >
+            <CheckIcon className={cn("size-3.5 shrink-0", value ? "invisible" : "")} />
+            Default voice
+          </button>
+          {groups.map((group) => (
+            <div key={group.label ?? "all"}>
+              {group.label && (
+                <div className="px-2 pt-2 pb-1 text-xs font-medium text-[var(--surface-muted)]">{group.label}</div>
+              )}
+              {group.voices.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(v.id);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"
+                >
+                  <CheckIcon className={cn("size-3.5 shrink-0", value === v.id ? "" : "invisible")} />
+                  <span className="truncate">{v.name}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+          {groups.every((g) => g.voices.length === 0) && (
+            <p className="px-2 py-3 text-center text-sm text-[var(--surface-muted)]">No voices match "{query}".</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const PERSIST_TTS_PREFS_DELAY_MS = 600;
 
@@ -328,35 +428,10 @@ function TtsVoicePicker() {
   return (
     <div className="flex flex-col gap-3">
       {voices && voices.length > 0 && (
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+        <div className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Voice
-          <select className={selectClass()} value={voice ?? ""} onChange={(e) => pickVoice(e.target.value || undefined)}>
-            <option value="">Default voice</option>
-            {voices.some((v) => v.category) ? (
-              Object.entries(
-                voices.reduce<Record<string, typeof voices>>((groups, v) => {
-                  const label = VOICE_CATEGORY_GROUP_LABELS[v.category ?? ""] ?? "Other voices";
-                  (groups[label] ??= []).push(v);
-                  return groups;
-                }, {}),
-              ).map(([label, group]) => (
-                <optgroup key={label} label={label}>
-                  {group.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))
-            ) : (
-              voices.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
+          <VoiceCombobox voices={voices} value={voice} onChange={pickVoice} />
+        </div>
       )}
 
       {provider === "elevenlabs" && (

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { article, articleState, auditLog, db, feed, feedTag, summary, ttsAudio, userSettings } from "@distill/db";
 import {
   generateSummary,
@@ -102,7 +102,7 @@ articlesRouter.get("/", async (c) => {
   const userId = c.get("userId");
   const query = listArticlesQuerySchema.safeParse(c.req.query());
   if (!query.success) return c.json({ message: "Invalid query", issues: query.error.issues }, 400);
-  const { feedId, tagId, view, cursor, limit } = query.data;
+  const { feedId, tagId, view, cursor, limit, sortDir } = query.data;
 
   const conditions = [eq(article.userId, userId)];
   if (feedId) conditions.push(eq(article.feedId, feedId));
@@ -127,7 +127,8 @@ articlesRouter.get("/", async (c) => {
   if (cursor) {
     const decoded = decodeCursor(cursor);
     if (!decoded) return c.json({ message: "Invalid cursor" }, 400);
-    conditions.push(sql`(${sortKey}, ${article.id}) < (${decoded.ts}::timestamptz, ${decoded.id}::uuid)`);
+    const cmp = sortDir === "asc" ? sql`>` : sql`<`;
+    conditions.push(sql`(${sortKey}, ${article.id}) ${cmp} (${decoded.ts}::timestamptz, ${decoded.id}::uuid)`);
   }
 
   const rows = await db
@@ -151,7 +152,7 @@ articlesRouter.get("/", async (c) => {
     .innerJoin(feed, eq(article.feedId, feed.id))
     .leftJoin(articleState, articleStateJoin(userId))
     .where(and(...conditions))
-    .orderBy(sql`${sortKey} desc`, desc(article.id))
+    .orderBy(sortDir === "asc" ? sql`${sortKey} asc` : sql`${sortKey} desc`, sortDir === "asc" ? asc(article.id) : desc(article.id))
     .limit(limit + 1);
 
   const hasMore = rows.length > limit;
