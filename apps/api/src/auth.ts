@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { account, auditLog, db, session, user, verification } from "@distill/db";
-import { hasAnyUser } from "./lib/users.js";
+import { isSignupAllowed } from "./lib/users.js";
 
 // PLAN §10.6 — audit log for auth events. Sign-in/sign-up are the two
 // security-relevant ones for brute-force/unusual-activity monitoring; both
@@ -75,15 +75,15 @@ export const auth = betterAuth({
   // Belt-and-suspenders with index.ts's POST /auth/sign-up/email guard:
   // this is the one choke point every user row passes through regardless
   // of which flow created it (email/password OR any OAuth provider), so
-  // it's what actually guarantees the single-user invariant rather than
+  // it's what actually guarantees the allowlist invariant rather than
   // relying on every current and future sign-up path remembering to check
   // it individually.
   databaseHooks: {
     user: {
       create: {
-        before: async () => {
-          if (await hasAnyUser()) {
-            throw new APIError("BAD_REQUEST", { message: "Sign-up is disabled — an account already exists." });
+        before: async (newUser) => {
+          if (!(await isSignupAllowed(newUser.email))) {
+            throw new APIError("BAD_REQUEST", { message: "Sign-up is disabled for this email address." });
           }
         },
       },

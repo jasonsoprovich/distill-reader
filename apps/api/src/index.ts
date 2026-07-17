@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { auth, trustedOrigins } from "./auth.js";
-import { hasAnyUser } from "./lib/users.js";
+import { hasAnyUser, isSignupAllowed } from "./lib/users.js";
 import { authRateLimit, globalRateLimit } from "./middleware/rate-limit.js";
 import { articlesRouter } from "./routes/articles.js";
 import { credentialsRouter } from "./routes/credentials.js";
@@ -91,12 +91,16 @@ app.get("/auth/social-providers", (c) => {
   });
 });
 
-// Self-hosted single-user app: sign-up creates the one account during
-// first-run setup, then locks itself out. Without this, Better Auth's
-// emailAndPassword config leaves /auth/sign-up/email open indefinitely.
+// Self-hosted app: sign-up creates the first account during first-run setup;
+// after that, only allowlisted emails (ALLOWED_SIGNUP_EMAILS) get in. Without
+// this, Better Auth's emailAndPassword config leaves /auth/sign-up/email open
+// indefinitely. Reads a cloned request so the body stream is still intact
+// for auth.handler to parse below.
 app.post("/auth/sign-up/email", async (c) => {
-  if (await hasAnyUser()) {
-    return c.json({ message: "Sign-up is disabled — an account already exists." }, 403);
+  const body = (await c.req.raw.clone().json().catch(() => null)) as { email?: unknown } | null;
+  const email = typeof body?.email === "string" ? body.email : "";
+  if (!email || !(await isSignupAllowed(email))) {
+    return c.json({ message: "Sign-up is disabled for this email address." }, 403);
   }
   return auth.handler(c.req.raw);
 });

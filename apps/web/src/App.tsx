@@ -10,6 +10,7 @@ import ProtectedLayout from "./routes/ProtectedLayout";
 import Reader, { type MobileView } from "./routes/Reader";
 import Settings from "./routes/Settings";
 import Setup from "./routes/Setup";
+import Signup from "./routes/Signup";
 
 function App() {
   // Lifted out of Reader (rather than left as its own local state) so a
@@ -26,6 +27,7 @@ function App() {
         <Routes>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route element={<ProtectedLayout />}>
             <Route
               path="/"
