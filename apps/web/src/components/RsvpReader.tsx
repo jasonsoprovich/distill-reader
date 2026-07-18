@@ -221,14 +221,17 @@ export default function RsvpReader({ articleId, fullText, onExit }: RsvpReaderPr
       </div>
 
       <div className="relative flex flex-1 items-center justify-center px-6">
-        <div className="grid w-full max-w-3xl grid-cols-[1fr_auto_1fr] items-center text-5xl font-medium">
-          <span className="text-right whitespace-pre" style={{ color: wordColor }}>
+        <div
+          className="grid w-full max-w-3xl grid-cols-[1fr_auto_1fr] items-center font-medium"
+          style={{ fontSize: "clamp(1.75rem, 8vw, 3rem)" }}
+        >
+          <span className="text-right break-words" style={{ color: wordColor }}>
             {before}
           </span>
-          <span className="text-center whitespace-pre" style={{ color: pivotColor }}>
+          <span className="text-center break-words" style={{ color: pivotColor }}>
             {pivot}
           </span>
-          <span className="text-left whitespace-pre" style={{ color: wordColor }}>
+          <span className="text-left break-words" style={{ color: wordColor }}>
             {after}
           </span>
         </div>
