@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ArticleList from "@/components/ArticleList";
 import ArticleReader from "@/components/ArticleReader";
 import FeedSidebar from "@/components/FeedSidebar";
@@ -17,6 +17,17 @@ const SIDEBAR_COLLAPSED_KEY = "distill:sidebarCollapsed";
 function loadCollapsed(key: string): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(key) === "true";
+}
+
+// Below md, the three panes are a single-pane back-stack (sidebar -> list ->
+// reader) rather than real routes. At md+ all three show simultaneously, so
+// there's no "back" to trap — history push/pop is skipped entirely there.
+function isMobileLayout(): boolean {
+  return typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
+}
+
+interface MobileHistoryState {
+  distillMobileView?: MobileView;
 }
 
 interface ReaderProps {
@@ -50,6 +61,45 @@ export default function Reader({
     });
   }
 
+  // Selecting a feed or an article pushes a history entry recording the
+  // pane it opened, so the phone's hardware/gesture back button (which
+  // fires popstate, below) steps back into the app one pane at a time
+  // instead of leaving the site entirely — mirroring what the on-screen
+  // back buttons already did.
+  function pushMobileHistory(next: MobileView) {
+    if (!isMobileLayout()) return;
+    const state: MobileHistoryState = { distillMobileView: next };
+    window.history.pushState(state, "");
+  }
+
+  // Reused by both the in-app back buttons and the browser/gesture back
+  // (via popstate below) so the two stay in sync — going "back" always pops
+  // one history entry rather than one directly setting state and the other
+  // popping it, which would desync the stack.
+  function goBack(fallback: MobileView) {
+    if (isMobileLayout()) {
+      window.history.back();
+      return;
+    }
+    onMobileViewChange(fallback);
+    if (fallback !== "reader") onSelectedArticleIdChange(null);
+  }
+
+  useEffect(() => {
+    function onPopState(event: PopStateEvent) {
+      if (!isMobileLayout()) return;
+      const view = (event.state as MobileHistoryState | null)?.distillMobileView ?? "sidebar";
+      onMobileViewChange(view);
+      // Leaving the reader pane this way (back button, swipe, or hardware
+      // back) should stop any audio in flight — it's the only handle on
+      // playback, and once this pane is hidden the AudioBar controlling it
+      // goes with it.
+      if (view !== "reader") onSelectedArticleIdChange(null);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [onMobileViewChange, onSelectedArticleIdChange]);
+
   return (
     <div
       className="flex h-dvh flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)] md:flex-row"
@@ -62,6 +112,7 @@ export default function Reader({
           onSelectionChange(next);
           onSelectedArticleIdChange(null);
           onMobileViewChange("list");
+          pushMobileHistory("list");
         }}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapsed}
@@ -73,20 +124,14 @@ export default function Reader({
         onSelectArticle={(id) => {
           onSelectedArticleIdChange(id);
           onMobileViewChange("reader");
+          pushMobileHistory("reader");
         }}
-        onBack={() => onMobileViewChange("sidebar")}
+        onBack={() => goBack("sidebar")}
       />
       <ArticleReader
         className={cn("md:flex", mobileView === "reader" ? "flex" : "hidden")}
         articleId={selectedArticleId}
-        onBack={() => {
-          onMobileViewChange("list");
-          // useTtsPlayback's cleanup effect is keyed on articleId — clearing
-          // it here is the only way to stop audio when the article stays
-          // selected in state but its pane is just hidden on mobile,
-          // instead of unmounting (ArticleReader className toggles hidden).
-          onSelectedArticleIdChange(null);
-        }}
+        onBack={() => goBack("list")}
       />
     </div>
   );
