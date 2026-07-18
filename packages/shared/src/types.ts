@@ -14,6 +14,20 @@ export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai", "kokoro"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
 
+// Options for the poll-interval pickers (AddFeedDialog, EditFeedDialog,
+// Settings' default). Bounds match pollIntervalMinutes/defaultPollIntervalMinutes's
+// z.number().min(5).max(1440) in schemas.ts (5 min to 24h).
+export const POLL_INTERVAL_OPTIONS = [
+  { minutes: 15, label: "Every 15 minutes" },
+  { minutes: 30, label: "Every 30 minutes" },
+  { minutes: 60, label: "Every hour" },
+  { minutes: 120, label: "Every 2 hours" },
+  { minutes: 240, label: "Every 4 hours" },
+  { minutes: 360, label: "Every 6 hours" },
+  { minutes: 720, label: "Every 12 hours" },
+  { minutes: 1440, label: "Every 24 hours" },
+] as const;
+
 // ElevenLabs' selectable TTS models — Piper has no model concept, so its
 // picker is voice-only. eleven_turbo_v2_5 is omitted: ElevenLabs' own docs
 // mark it deprecated in favor of eleven_flash_v2_5, functionally equivalent
@@ -259,6 +273,7 @@ export interface ReaderTheme {
 export interface SettingsDTO {
   defaultRetentionReadDays: number;
   defaultRetentionUnreadDays: number;
+  defaultPollIntervalMinutes: number;
   readerTheme: ReaderTheme;
   rsvpPrefs: RsvpPrefs;
   ttsPrefs: TtsPrefs;

@@ -35,11 +35,10 @@ async function deleteFeedAudioFiles(feedId: string): Promise<void> {
   );
 }
 
-// A brand-new feed's first poll is synchronous (part of the create request,
-// no job queue exists to defer it — same constraint as the summary/TTS
-// routes), so its item count is capped well below the regular per-poll cap
-// to keep that request's latency bounded: enough to confirm the feed works
-// and give the user something to read, not a full backfill.
+// A brand-new feed's first poll runs in the background, uncoupled from the
+// create request (see the fire-and-forget ingestFeed call below) — capped
+// well below the regular per-poll limit so it's a quick initial taste of the
+// feed rather than a full backfill.
 const INITIAL_POLL_ITEM_LIMIT = 10;
 
 export const feedsRouter = new Hono<{ Variables: AuthVariables }>();
@@ -148,18 +147,6 @@ feedsRouter.post("/", costlyRouteRateLimit, async (c) => {
     }
   }
 
-  // Ingest failures (source unreachable, no items, etc.) shouldn't fail feed
-  // creation — the feed row already exists and can be refreshed manually —
-  // so ingestResult.error is deliberately not surfaced here; it's already
-  // captured on the feed row itself (lastError/consecutiveFailures) by
-  // ingestFeed and picked up below.
-  const ingestResult = await ingestFeed(db, row, { itemLimit: INITIAL_POLL_ITEM_LIMIT });
-
-  // ingestFeed just updated lastPolledAt/lastError/consecutiveFailures on
-  // this same row in the DB — re-read it so the response reflects that
-  // instead of the pre-ingest values still held in `row`.
-  const [freshRow] = await db.select().from(feed).where(eq(feed.id, row.id));
-
   const tagsMap = await tagsByFeedId(userId);
 
   // PLAN §10.6 — audit log for feed add.
@@ -171,10 +158,19 @@ feedsRouter.post("/", costlyRouteRateLimit, async (c) => {
     metadata: { sourceUrl: row.sourceUrl, kind: row.kind },
   });
 
-  // Freshly inserted articles have no article_state row yet, so every one
-  // ingestFeed just inserted is unread by definition — no need for a second
-  // query to recompute what ingestResult.articlesInserted already tells us.
-  return c.json(toDTO(freshRow, tagsMap.get(row.id) ?? [], ingestResult.articlesInserted), 201);
+  // Deliberately not awaited: the first fetch/parse of a feed shouldn't block
+  // the create request (it can take several seconds for a slow/large feed),
+  // and the per-minute worker poll would pick up this feed on its own within
+  // a minute regardless (a freshly created row has no lastPolledAt, so it's
+  // immediately due). Firing it here just gets that first fetch started
+  // sooner. Errors are swallowed — ingestFeed already records them on the
+  // feed row itself (lastError/consecutiveFailures) for the UI to surface,
+  // same as every other poll.
+  ingestFeed(db, row, { itemLimit: INITIAL_POLL_ITEM_LIMIT }).catch((err) => {
+    console.error(`[feeds] background ingest failed for feed ${row.id}`, err);
+  });
+
+  return c.json(toDTO(row, tagsMap.get(row.id) ?? [], 0), 201);
 });
 
 feedsRouter.get("/:id", async (c) => {

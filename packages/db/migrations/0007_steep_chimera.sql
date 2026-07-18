@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "default_poll_interval_minutes" integer DEFAULT 30 NOT NULL;

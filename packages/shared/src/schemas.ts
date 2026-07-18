@@ -21,6 +21,7 @@ export const createFeedSchema = z.object({
   title: z.string().min(1).max(500),
   siteUrl: z.url().nullable().optional(),
   faviconUrl: z.url().nullable().optional(),
+  pollIntervalMinutes: z.number().int().min(5).max(1440).optional(),
   tagIds: z.array(z.uuid()).optional(),
 });
 export type CreateFeedInput = z.infer<typeof createFeedSchema>;
@@ -129,6 +130,7 @@ export type ReaderThemeInput = z.infer<typeof readerThemeSchema>;
 export const patchSettingsSchema = z.object({
   defaultRetentionReadDays: z.number().int().positive().optional(),
   defaultRetentionUnreadDays: z.number().int().positive().optional(),
+  defaultPollIntervalMinutes: z.number().int().min(5).max(1440).optional(),
   readerTheme: readerThemeSchema.optional(),
   rsvpPrefs: rsvpPrefsSchema.optional(),
   ttsPrefs: ttsPrefsSchema.optional(),

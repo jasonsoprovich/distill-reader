@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PlusIcon } from "lucide-react";
+import { POLL_INTERVAL_OPTIONS } from "@distill/shared";
 import type { DiscoveredFeed } from "@distill/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api";
-import { useCreateFeed, useCreateTag, usePreviewFeed, useTags } from "@/lib/hooks";
+import { useCreateFeed, useCreateTag, usePreviewFeed, useSettings, useTags } from "@/lib/hooks";
+
+function selectClass() {
+  return "h-9 rounded-md border border-[var(--surface-border)] bg-transparent px-3 text-sm text-[var(--surface-fg)] shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+}
 
 export default function AddFeedDialog() {
   const [open, setOpen] = useState(false);
@@ -22,12 +27,20 @@ export default function AddFeedDialog() {
   const [discovered, setDiscovered] = useState<DiscoveredFeed | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState("");
+  const [pollIntervalMinutes, setPollIntervalMinutes] = useState(30);
   const [error, setError] = useState<string | null>(null);
 
   const preview = usePreviewFeed();
   const createFeed = useCreateFeed();
   const createTag = useCreateTag();
   const { data: tags = [] } = useTags();
+  const { data: settings } = useSettings();
+
+  // Re-seed the interval from the user's default each time the dialog opens
+  // (settings may not have loaded yet on first mount).
+  useEffect(() => {
+    if (open) setPollIntervalMinutes(settings?.defaultPollIntervalMinutes ?? 30);
+  }, [open, settings?.defaultPollIntervalMinutes]);
 
   function reset() {
     setUrl("");
@@ -67,7 +80,7 @@ export default function AddFeedDialog() {
     if (!discovered) return;
     setError(null);
     try {
-      await createFeed.mutateAsync({ ...discovered, tagIds: selectedTagIds });
+      await createFeed.mutateAsync({ ...discovered, tagIds: selectedTagIds, pollIntervalMinutes });
       setOpen(false);
       reset();
     } catch (err) {
@@ -144,6 +157,21 @@ export default function AddFeedDialog() {
                   </Button>
                 </div>
               </div>
+
+              <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+                Check for new items
+                <select
+                  className={selectClass()}
+                  value={pollIntervalMinutes}
+                  onChange={(e) => setPollIntervalMinutes(Number(e.target.value))}
+                >
+                  {POLL_INTERVAL_OPTIONS.map((o) => (
+                    <option key={o.minutes} value={o.minutes}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           )}
         </div>

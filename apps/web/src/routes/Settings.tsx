@@ -5,6 +5,7 @@ import {
   CREDENTIAL_PROVIDERS,
   ELEVENLABS_MODELS,
   OPENAI_TTS_MODELS,
+  POLL_INTERVAL_OPTIONS,
   READER_THEME_NAMES,
   SUMMARY_PROVIDERS,
   TTS_PROVIDERS,
@@ -201,6 +202,30 @@ function CredentialsList() {
         </li>
       ))}
     </ul>
+  );
+}
+
+function DefaultPollIntervalPicker() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+
+  if (!settings) return null;
+
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+      Default refresh interval for new feeds
+      <select
+        className={selectClass()}
+        value={settings.defaultPollIntervalMinutes}
+        onChange={(e) => updateSettings.mutate({ defaultPollIntervalMinutes: Number(e.target.value) })}
+      >
+        {POLL_INTERVAL_OPTIONS.map((o) => (
+          <option key={o.minutes} value={o.minutes}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -652,6 +677,15 @@ export default function Settings() {
         <section className="mt-6 flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-[var(--surface-fg)]">Reader theme</h2>
           <ReaderThemePicker />
+        </section>
+
+        <section className="mt-8 flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-[var(--surface-fg)]">Feeds</h2>
+          <p className="text-xs text-[var(--surface-muted)]">
+            Applies to newly added feeds — each feed's own refresh schedule (and whether it auto-refreshes at all)
+            can still be changed later from its edit menu.
+          </p>
+          <DefaultPollIntervalPicker />
         </section>
 
         <section className="mt-8 flex flex-col gap-3">

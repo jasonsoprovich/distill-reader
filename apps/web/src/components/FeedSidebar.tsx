@@ -39,7 +39,12 @@ import {
 } from "@/lib/hooks";
 import type { Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
+import { POLL_INTERVAL_OPTIONS } from "@distill/shared";
 import type { ArticleView, FeedDTO, TagDTO } from "@distill/shared";
+
+function selectClass() {
+  return "h-9 rounded-md border border-[var(--surface-border)] bg-transparent px-3 text-sm text-[var(--surface-fg)] shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+}
 
 interface FeedSidebarProps {
   selection: Selection;
@@ -85,18 +90,24 @@ function EditFeedDialog({ feed }: { feed: FeedDTO }) {
   const [open, setOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState("");
+  const [active, setActive] = useState(feed.active);
+  const [pollIntervalMinutes, setPollIntervalMinutes] = useState(feed.pollIntervalMinutes);
   const [error, setError] = useState<string | null>(null);
 
   const { data: tags = [] } = useTags();
   const createTag = useCreateTag();
   const updateFeed = useUpdateFeed();
 
-  // Re-seed from the feed's current tags each time the dialog opens, not
+  // Re-seed from the feed's current values each time the dialog opens, not
   // just on first mount — otherwise a previous edit session's leftover
   // selection would resurface next time this same dialog instance opens.
   useEffect(() => {
-    if (open) setSelectedTagIds(feed.tags.map((t) => t.id));
-  }, [open, feed.tags]);
+    if (open) {
+      setSelectedTagIds(feed.tags.map((t) => t.id));
+      setActive(feed.active);
+      setPollIntervalMinutes(feed.pollIntervalMinutes);
+    }
+  }, [open, feed.tags, feed.active, feed.pollIntervalMinutes]);
 
   function toggleTag(id: string) {
     setSelectedTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
@@ -116,7 +127,10 @@ function EditFeedDialog({ feed }: { feed: FeedDTO }) {
   async function handleSave() {
     setError(null);
     try {
-      await updateFeed.mutateAsync({ id: feed.id, patch: { tagIds: selectedTagIds } });
+      await updateFeed.mutateAsync({
+        id: feed.id,
+        patch: { tagIds: selectedTagIds, active, pollIntervalMinutes },
+      });
       setOpen(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not update that feed");
@@ -130,7 +144,7 @@ function EditFeedDialog({ feed }: { feed: FeedDTO }) {
           variant="ghost"
           size="icon"
           className="hidden size-6 shrink-0 text-[var(--surface-muted)] hover:text-[var(--surface-fg)] group-hover:inline-flex"
-          title="Edit tags"
+          title="Edit feed"
           onClick={(e) => e.stopPropagation()}
         >
           <PencilIcon className="size-3.5" />
@@ -138,35 +152,76 @@ function EditFeedDialog({ feed }: { feed: FeedDTO }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit "{feed.title}" tags</DialogTitle>
-          <DialogDescription>Add or remove tags for this feed.</DialogDescription>
+          <DialogTitle>Edit "{feed.title}"</DialogTitle>
+          <DialogDescription>Tags, refresh schedule, and other settings for this feed.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-1.5">
-            {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags yet.</span>}
-            {tags.map((t) => (
-              <button key={t.id} type="button" onClick={() => toggleTag(t.id)}>
-                <Badge variant={selectedTagIds.includes(t.id) ? "default" : "outline"}>{t.name}</Badge>
-              </button>
-            ))}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {tags.length === 0 && <span className="text-xs text-muted-foreground">No tags yet.</span>}
+              {tags.map((t) => (
+                <button key={t.id} type="button" onClick={() => toggleTag(t.id)}>
+                  <Badge variant={selectedTagIds.includes(t.id) ? "default" : "outline"}>{t.name}</Badge>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="New tag"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCreateTag}
+                disabled={!newTagName.trim() || createTag.isPending}
+              >
+                Add tag
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Input
-              placeholder="New tag"
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCreateTag}
-              disabled={!newTagName.trim() || createTag.isPending}
+
+          <div className="flex flex-col gap-2 border-t border-[var(--surface-border)] pt-3">
+            <button
+              type="button"
+              className="flex w-fit items-center gap-2 text-sm font-medium"
+              onClick={() => setActive((prev) => !prev)}
             >
-              Add tag
-            </Button>
+              <span
+                className={cn(
+                  "flex size-4 items-center justify-center rounded border",
+                  active ? "border-primary bg-primary" : "border-[var(--surface-border)]",
+                )}
+              >
+                {active && <span className="size-2 rounded-[1px] bg-primary-foreground" />}
+              </span>
+              Auto-refresh
+            </button>
+            {active ? (
+              <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+                Check for new items
+                <select
+                  className={selectClass()}
+                  value={pollIntervalMinutes}
+                  onChange={(e) => setPollIntervalMinutes(Number(e.target.value))}
+                >
+                  {POLL_INTERVAL_OPTIONS.map((o) => (
+                    <option key={o.minutes} value={o.minutes}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="text-xs text-[var(--surface-muted)]">
+                Won't update on its own — use "Refresh all" or wait until you turn this back on.
+              </p>
+            )}
           </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
