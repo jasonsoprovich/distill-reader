@@ -31,7 +31,10 @@ export default function AudioBar({ playback }: AudioBarProps) {
   if (!activeSource) return null;
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-t border-[var(--surface-border)] bg-[var(--surface-bg)] px-4 py-2">
+    <div
+      className="flex shrink-0 items-center gap-2 border-t border-[var(--surface-border)] bg-[var(--surface-bg)] px-4 pt-2"
+      style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+    >
       <Button variant="ghost" size="icon" className="size-8 shrink-0" title={`Back ${TTS_SKIP_SECONDS}s`} onClick={() => skip(-TTS_SKIP_SECONDS)}>
         <RotateCcwIcon className="size-4 text-[var(--surface-muted)]" />
       </Button>
