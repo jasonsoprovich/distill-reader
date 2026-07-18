@@ -77,7 +77,7 @@ services:
       # infrastructure exists elsewhere in this codebase), so the API
       # writes synthesized audio files here itself rather than dispatching
       # to the worker.
-      - audio_storage:${AUDIO_STORAGE_PATH}:rw
+      - audio_storage:/data/audio:rw
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,7 +105,7 @@ services:
       PIPER_BASE_URL: ${PIPER_BASE_URL}
       LOG_LEVEL: ${LOG_LEVEL}
     volumes:
-      - audio_storage:${AUDIO_STORAGE_PATH}:rw
+      - audio_storage:/data/audio:rw
     depends_on:
       postgres:
         condition: service_healthy
