@@ -17,6 +17,17 @@ import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api";
 import { useCreateFeed, useCreateTag, usePreviewFeed, useSettings, useTags } from "@/lib/hooks";
 
+// Typed-in URLs (as opposed to pasted ones) very often omit the scheme —
+// "bleepingcomputer.com" rather than "https://bleepingcomputer.com" — which
+// the API's z.url() validation rejects outright. Mobile keyboards make this
+// especially likely: autocapitalize/autocomplete tends to strip or never
+// offer "https://" the way a copy-pasted link would already have it.
+function normalizeUrl(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed || /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 function selectClass() {
   return "h-9 rounded-md border border-[var(--surface-border)] bg-transparent px-3 text-sm text-[var(--surface-fg)] shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 }
@@ -53,8 +64,10 @@ export default function AddFeedDialog() {
   async function handlePreview() {
     if (!url) return;
     setError(null);
+    const normalized = normalizeUrl(url);
+    setUrl(normalized);
     try {
-      setDiscovered(await preview.mutateAsync(url));
+      setDiscovered(await preview.mutateAsync(normalized));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not find a feed at that URL");
     }
