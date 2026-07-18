@@ -4,6 +4,7 @@ import { patchSettingsSchema } from "@distill/shared";
 import type { SettingsDTO } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
+import { checkThemeAllowed } from "../lib/entitlements.js";
 
 export const settingsRouter = new Hono<{ Variables: AuthVariables }>();
 settingsRouter.use("*", requireAuth);
@@ -43,6 +44,11 @@ settingsRouter.patch("/", async (c) => {
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
 
   const existing = await ensureSettingsRow(userId);
+
+  if (body.data.readerTheme?.name) {
+    const denial = await checkThemeAllowed(userId, body.data.readerTheme.name);
+    if (denial) return c.json(denial, 402);
+  }
 
   // readerTheme/rsvpPrefs/ttsPrefs are jsonb columns meant to be merge-patched
   // (each field schema is all-optional for exactly this reason) — but

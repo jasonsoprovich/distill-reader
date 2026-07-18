@@ -1,7 +1,10 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { account, auditLog, db, session, user, verification } from "@distill/db";
+import type { BetterAuthPlugin } from "better-auth/types";
+import { stripe } from "@better-auth/stripe";
+import Stripe from "stripe";
+import { account, auditLog, db, session, subscription, user, verification } from "@distill/db";
 import { isSignupAllowed } from "./lib/users.js";
 
 // PLAN §10.6 — audit log for auth events. Sign-in/sign-up are the two
@@ -56,10 +59,41 @@ function buildSocialProviders() {
   return providers;
 }
 
+// Same env-guard pattern as buildSocialProviders(): the Stripe plugin (and its
+// /stripe/webhook route) only registers once real credentials exist, so an
+// unconfigured deployment never exposes a broken billing endpoint. Enforcement of
+// any resulting subscription's limits is a separate, also-dormant concern — see
+// PAYWALL_ENABLED in lib/entitlements.ts; this just makes the plugin/schema exist.
+function buildPlugins() {
+  const plugins: BetterAuthPlugin[] = [];
+  if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) {
+    const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2026-03-25.dahlia" as Stripe.LatestApiVersion,
+    });
+    plugins.push(
+      stripe({
+        stripeClient,
+        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+        createCustomerOnSignUp: true,
+        subscription: {
+          enabled: true,
+          plans: [
+            {
+              name: "pro",
+              priceId: process.env.STRIPE_PRO_PRICE_ID ?? "",
+            },
+          ],
+        },
+      }),
+    );
+  }
+  return plugins;
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema: { user, session, account, verification },
+    schema: { user, session, account, verification, subscription },
   }),
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -69,6 +103,7 @@ export const auth = betterAuth({
     enabled: true,
   },
   socialProviders: buildSocialProviders(),
+  plugins: buildPlugins(),
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
   },

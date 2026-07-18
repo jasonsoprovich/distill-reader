@@ -8,6 +8,7 @@ import type { FeedDTO, TagDTO } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
+import { checkCanAddFeed } from "../lib/entitlements.js";
 
 function audioStoragePath(): string {
   return process.env.AUDIO_STORAGE_PATH || "/data/audio";
@@ -130,6 +131,10 @@ feedsRouter.post("/", costlyRouteRateLimit, async (c) => {
   const userId = c.get("userId");
   const body = createFeedSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+
+  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(feed).where(eq(feed.userId, userId));
+  const denial = await checkCanAddFeed(userId, Number(count));
+  if (denial) return c.json(denial, 402);
 
   const { tagIds, ...feedFields } = body.data;
   const [row] = await db

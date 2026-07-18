@@ -9,6 +9,7 @@ import { articlesRouter } from "./routes/articles.js";
 import { credentialsRouter } from "./routes/credentials.js";
 import { feedsRouter } from "./routes/feeds.js";
 import { imagesRouter } from "./routes/images.js";
+import { meRouter } from "./routes/me.js";
 import { settingsRouter } from "./routes/settings.js";
 import { tagsRouter } from "./routes/tags.js";
 import { ttsRouter } from "./routes/tts.js";
@@ -71,6 +72,7 @@ app.use("/articles/*", jsonApiCors);
 app.use("/credentials/*", jsonApiCors);
 app.use("/settings/*", jsonApiCors);
 app.use("/tts/*", jsonApiCors);
+app.use("/me/*", jsonApiCors);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -114,6 +116,7 @@ app.route("/img", imagesRouter);
 app.route("/credentials", credentialsRouter);
 app.route("/settings", settingsRouter);
 app.route("/tts", ttsRouter);
+app.route("/me", meRouter);
 
 const port = Number(process.env.API_PORT ?? 3001);
 

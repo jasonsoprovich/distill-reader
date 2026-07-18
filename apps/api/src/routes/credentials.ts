@@ -5,6 +5,7 @@ import { createCredentialSchema } from "@distill/shared";
 import type { CredentialDTO } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
+import { checkByokAllowed } from "../lib/entitlements.js";
 
 export const credentialsRouter = new Hono<{ Variables: AuthVariables }>();
 credentialsRouter.use("*", requireAuth);
@@ -36,6 +37,9 @@ credentialsRouter.post("/", async (c) => {
   const userId = c.get("userId");
   const body = createCredentialSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+
+  const denial = await checkByokAllowed(userId);
+  if (denial) return c.json(denial, 402);
 
   const { provider, label, secret, baseUrl } = body.data;
   const [row] = await db

@@ -38,6 +38,7 @@ import type {
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
+import { checkAiAllowed } from "../lib/entitlements.js";
 
 export const articlesRouter = new Hono<{ Variables: AuthVariables }>();
 articlesRouter.use("*", requireAuth);
@@ -399,6 +400,9 @@ articlesRouter.post("/:id/summary", costlyRouteRateLimit, async (c) => {
 
   const owned = await ownedArticleWithText(userId, id);
   if (!owned) return c.json({ message: "Not found" }, 404);
+
+  const denial = await checkAiAllowed(userId);
+  if (denial) return c.json(denial, 402);
 
   let provider: SummaryProviderKind | undefined = body.data.provider;
   if (!provider) {
