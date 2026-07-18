@@ -38,6 +38,11 @@ COPY --from=build /repo/packages/db/migrations packages/db/migrations
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/packages/extract/dist packages/extract/dist
 COPY --from=build /repo/packages/providers/dist packages/providers/dist
+# audio_storage is a fresh named volume on first deploy; Docker seeds it from
+# this image's /data/audio on first mount, ownership included — without this,
+# the volume mount point defaults to root:root and the non-root `app` user
+# below can't write synthesized TTS audio there (EACCES).
+RUN mkdir -p /data/audio && chown app:app /data/audio
 USER app
 EXPOSE 3001
 CMD ["node", "apps/api/dist/index.js"]
