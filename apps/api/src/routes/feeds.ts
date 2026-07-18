@@ -10,7 +10,7 @@ import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
 
 function audioStoragePath(): string {
-  return process.env.AUDIO_STORAGE_PATH ?? "/data/audio";
+  return process.env.AUDIO_STORAGE_PATH || "/data/audio";
 }
 
 // Deleting a feed cascades the DB rows for its articles and their tts_audio

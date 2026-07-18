@@ -476,7 +476,7 @@ articlesRouter.post("/:id/summary", costlyRouteRateLimit, async (c) => {
 });
 
 function audioStoragePath(): string {
-  return process.env.AUDIO_STORAGE_PATH ?? "/data/audio";
+  return process.env.AUDIO_STORAGE_PATH || "/data/audio";
 }
 
 // Deletes every tts_audio row matching `condition` along with its on-disk

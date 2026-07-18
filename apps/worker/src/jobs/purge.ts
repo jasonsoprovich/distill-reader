@@ -8,7 +8,7 @@ const DEFAULT_RETENTION_UNREAD_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function audioStoragePath(): string {
-  return process.env.AUDIO_STORAGE_PATH ?? "/data/audio";
+  return process.env.AUDIO_STORAGE_PATH || "/data/audio";
 }
 
 async function deleteOrphanedAudio(articleIds: string[]): Promise<void> {
