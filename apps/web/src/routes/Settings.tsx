@@ -653,7 +653,7 @@ export default function Settings() {
   const { vars } = useReaderTheme();
 
   return (
-    <div className="min-h-screen bg-[var(--surface-bg)] text-[var(--surface-fg)]" style={vars}>
+    <div className="min-h-dvh bg-[var(--surface-bg)] text-[var(--surface-fg)]" style={vars}>
       <div className="mx-auto max-w-2xl px-6 py-8">
         <Link
           to="/"

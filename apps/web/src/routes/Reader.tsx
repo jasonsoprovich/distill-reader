@@ -52,7 +52,7 @@ export default function Reader({
 
   return (
     <div
-      className="flex h-screen flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)] md:flex-row"
+      className="flex h-dvh flex-col bg-[var(--surface-bg)] text-[var(--surface-fg)] md:flex-row"
       style={vars}
     >
       <FeedSidebar

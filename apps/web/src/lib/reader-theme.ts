@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { CSSProperties } from "react";
 import type { ReaderFontName, ReaderThemeName } from "@distill/shared";
 import { useSettings } from "./hooks";
@@ -146,12 +147,32 @@ export function useReaderTheme() {
   const name = settings?.readerTheme.name ?? DEFAULT_READER_THEME_NAME;
   const fontSize = settings?.readerTheme.fontSize ?? DEFAULT_READER_FONT_SIZE;
   const fontFamily = settings?.readerTheme.fontFamily ?? DEFAULT_READER_FONT_FAMILY;
+  const style = READER_THEME_STYLES[name];
+
+  // <html>/<body> otherwise stay on their static white default (index.css),
+  // since the app's actual theming lives in inline --surface-* vars on
+  // wrapper divs, not a `.dark` class on the root. On mobile that mismatch
+  // shows through as white bars — behind the collapsing URL bar, in
+  // overscroll rubber-banding, and in the PWA status bar — on every theme
+  // but light.
+  useEffect(() => {
+    document.documentElement.style.backgroundColor = style.background;
+    document.body.style.backgroundColor = style.background;
+    // Two theme-color tags exist (index.html), split by prefers-color-scheme
+    // as a pre-mount guess for Safari's chrome — once the real theme is
+    // known, both get overridden so the chrome matches regardless of which
+    // one the OS scheme picked.
+    document
+      .querySelectorAll('meta[name="theme-color"]')
+      .forEach((meta) => meta.setAttribute("content", style.background));
+  }, [style.background]);
+
   return {
     name,
     fontSize,
     fontFamily,
     fontStack: READER_FONT_STACKS[fontFamily],
-    style: READER_THEME_STYLES[name],
+    style,
     isDark: DARK_READER_THEMES.has(name),
     vars: readerSurfaceVars(name),
   };

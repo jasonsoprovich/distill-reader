@@ -5,8 +5,15 @@
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
-    <meta name="theme-color" content="#863bff" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Sane guesses for Safari's chrome (status bar + toolbar) to tint
+         before the app mounts and syncs these to the actual reader theme
+         (apps/web/src/lib/reader-theme.ts) — otherwise the first paint (and
+         any moment JS hasn't caught up) shows Safari's own white default
+         instead of matching the page. -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171717" media="(prefers-color-scheme: dark)" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Distill</title>
   </head>
   <body>
