@@ -79,7 +79,14 @@ export default function Reader({
       <ArticleReader
         className={cn("md:flex", mobileView === "reader" ? "flex" : "hidden")}
         articleId={selectedArticleId}
-        onBack={() => onMobileViewChange("list")}
+        onBack={() => {
+          onMobileViewChange("list");
+          // useTtsPlayback's cleanup effect is keyed on articleId — clearing
+          // it here is the only way to stop audio when the article stays
+          // selected in state but its pane is just hidden on mobile,
+          // instead of unmounting (ArticleReader className toggles hidden).
+          onSelectedArticleIdChange(null);
+        }}
       />
     </div>
   );
