@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ReloadPrompt from "./components/ReloadPrompt";
@@ -20,6 +20,20 @@ function App() {
   const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>("sidebar");
+
+  // iOS restores a stale pinch-zoom level on cold launch (most noticeable
+  // opening the home-screen PWA), ignoring the viewport meta's
+  // initial-scale. Briefly forcing maximum-scale and releasing it nudges
+  // the browser into recomputing the zoom back to 1.0, without leaving
+  // pinch-zoom permanently disabled.
+  useEffect(() => {
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const original = viewport?.getAttribute("content");
+    if (!viewport || !original) return;
+    viewport.setAttribute("content", `${original}, maximum-scale=1`);
+    const frame = window.requestAnimationFrame(() => viewport.setAttribute("content", original));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
