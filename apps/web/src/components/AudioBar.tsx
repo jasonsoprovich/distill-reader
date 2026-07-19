@@ -48,7 +48,7 @@ export default function AudioBar({ playback }: AudioBarProps) {
       <span className="w-9 shrink-0 text-right text-xs text-[var(--surface-muted)]">{formatTime(currentTime)}</span>
       <input
         type="range"
-        className="h-1 flex-1 cursor-pointer"
+        className="h-1 min-w-0 flex-1 cursor-pointer"
         min={0}
         max={duration ?? 0}
         step={0.1}
