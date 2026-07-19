@@ -64,6 +64,20 @@
       "when": 1784409569319,
       "tag": "0008_melted_moondragon",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784489436674,
+      "tag": "0009_careful_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784489630982,
+      "tag": "0010_parallel_raider",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "api_credential" ADD COLUMN "via_relay" boolean DEFAULT false NOT NULL;

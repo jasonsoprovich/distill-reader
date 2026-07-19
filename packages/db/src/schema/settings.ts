@@ -1,4 +1,4 @@
-import { pgTable, text, integer, uuid, pgEnum, jsonb, timestamp, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, uuid, pgEnum, jsonb, timestamp, customType, boolean } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
 import { summaryProvider, ttsProvider } from "./ai.js";
 
@@ -43,5 +43,28 @@ export const apiCredential = pgTable("api_credential", {
   label: text("label").notNull(),
   secretEncrypted: bytea("secret_encrypted"),
   baseUrl: text("base_url"),
+  // True for a Piper/Kokoro credential that should be dispatched over the
+  // user's connected relay agent (relay_agent_token) instead of fetched
+  // directly against baseUrl — the cloud-hosted answer to a NAT'd home
+  // machine baseUrl can't reach. baseUrl is unused (left null) when set.
+  viaRelay: boolean("via_relay").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Pairing tokens for the local TTS relay agent (apps/relay-agent) — lets a
+// cloud-hosted deployment dispatch Piper/Kokoro synthesis over an
+// agent-initiated WebSocket to hardware the cloud can't dial into directly
+// (NAT'd home machines). tokenHash is hashed, not encrypted — like a
+// session token, the server only ever needs to *compare* it, never read the
+// raw value back, unlike apiCredential.secretEncrypted which callers must
+// decrypt to use against a third-party API.
+export const relayAgentToken = pgTable("relay_agent_token", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  tokenHash: bytea("token_hash").notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
