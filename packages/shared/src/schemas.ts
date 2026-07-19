@@ -4,6 +4,7 @@ import {
   FEED_KINDS,
   READER_FONT_NAMES,
   READER_THEME_NAMES,
+  RELAY_TTS_PROVIDERS,
   SUMMARY_PROVIDERS,
   TTS_PROVIDERS,
   TTS_SOURCES,
@@ -101,12 +102,24 @@ export const createCredentialSchema = z
     label: z.string().min(1).max(200),
     secret: z.string().min(1).max(4000).optional(),
     baseUrl: z.url().optional(),
+    // Only meaningful for piper/kokoro (RELAY_TTS_PROVIDERS) — routes this
+    // credential through the user's connected relay agent instead of baseUrl.
+    viaRelay: z.boolean().optional(),
   })
   .refine((data) => !KEYED_CREDENTIAL_PROVIDERS.has(data.provider) || Boolean(data.secret), {
     message: "secret is required for this provider",
     path: ["secret"],
+  })
+  .refine((data) => !data.viaRelay || RELAY_TTS_PROVIDERS.includes(data.provider as (typeof RELAY_TTS_PROVIDERS)[number]), {
+    message: "viaRelay is only supported for piper/kokoro",
+    path: ["viaRelay"],
   });
 export type CreateCredentialInput = z.infer<typeof createCredentialSchema>;
+
+export const createRelayTokenSchema = z.object({
+  label: z.string().min(1).max(200),
+});
+export type CreateRelayTokenInput = z.infer<typeof createRelayTokenSchema>;
 
 // PLAN §8.4 — persisted as a merge-patch into user_settings.rsvp_prefs
 // (jsonb), so every field stays optional here too.

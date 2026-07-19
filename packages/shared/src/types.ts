@@ -14,6 +14,13 @@ export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai", "kokoro"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
 
+// Self-hosted-only providers eligible to run behind the local relay agent
+// (apps/relay-agent) instead of a direct base_url — ElevenLabs/OpenAI are
+// cloud APIs the server already reaches directly, so relaying them would add
+// latency for no benefit.
+export const RELAY_TTS_PROVIDERS = ["piper", "kokoro"] as const;
+export type RelayTtsProviderKind = (typeof RELAY_TTS_PROVIDERS)[number];
+
 // Options for the poll-interval pickers (AddFeedDialog, EditFeedDialog,
 // Settings' default). Bounds match pollIntervalMinutes/defaultPollIntervalMinutes's
 // z.number().min(5).max(1440) in schemas.ts (5 min to 24h).
@@ -194,6 +201,9 @@ export interface CredentialDTO {
   provider: CredentialProviderKind;
   label: string;
   baseUrl: string | null;
+  // True for a piper/kokoro credential routed through the local relay agent
+  // instead of baseUrl (see RELAY_TTS_PROVIDERS / RelayAgentTokenDTO).
+  viaRelay: boolean;
   hasSecret: boolean;
   createdAt: string;
 }
@@ -313,4 +323,30 @@ export interface TtsVoiceDTO {
   id: string;
   name: string;
   category?: string;
+}
+
+// Pairing tokens for the local TTS relay agent (apps/relay-agent) — the raw
+// token is only ever returned once, from POST /relay/tokens
+// (RelayTokenCreatedDTO below); every other read gets this secret-free shape,
+// same write-only pattern as CredentialDTO.hasSecret.
+export interface RelayAgentTokenDTO {
+  id: string;
+  label: string;
+  lastSeenAt: string | null;
+  createdAt: string;
+}
+
+// Response shape unique to POST /relay/tokens — the one place the raw
+// pairing token is ever transmitted. The caller must show it to the user
+// immediately; it cannot be retrieved again afterward.
+export interface RelayTokenCreatedDTO extends RelayAgentTokenDTO {
+  token: string;
+}
+
+// GET /relay/status — whether an agent for this user currently holds an open
+// WebSocket to the API, so Settings can show live connection state rather
+// than just "a token exists."
+export interface RelayStatusDTO {
+  connected: boolean;
+  lastSeenAt: string | null;
 }
