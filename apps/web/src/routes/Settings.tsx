@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, SearchIcon, TrashIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, CopyIcon, SearchIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   CREDENTIAL_PROVIDERS,
@@ -7,6 +7,7 @@ import {
   OPENAI_TTS_MODELS,
   POLL_INTERVAL_OPTIONS,
   READER_THEME_NAMES,
+  RELAY_TTS_PROVIDERS,
   SUMMARY_PROVIDERS,
   TTS_PROVIDERS,
 } from "@distill/shared";
@@ -14,6 +15,7 @@ import type {
   CredentialProviderKind,
   ReaderFontName,
   ReaderThemeName,
+  RelayTtsProviderKind,
   SummaryProviderKind,
   TtsProviderKind,
   TtsVoiceDTO,
@@ -26,8 +28,12 @@ import { Slider } from "@/components/ui/slider";
 import { ApiError } from "@/lib/api";
 import {
   useCreateCredential,
+  useCreateRelayToken,
   useCredentials,
   useDeleteCredential,
+  useDeleteRelayToken,
+  useRelayStatus,
+  useRelayTokens,
   useSettings,
   useTtsVoices,
   useUpdateSettings,
@@ -44,6 +50,7 @@ import {
   READER_THEME_STYLES,
   useReaderTheme,
 } from "@/lib/reader-theme";
+import { toast } from "@/lib/toast";
 import { cn, fuzzyMatch } from "@/lib/utils";
 
 const KEYED_PROVIDERS = new Set<CredentialProviderKind>(["openai", "anthropic", "elevenlabs"]);
@@ -83,15 +90,21 @@ function selectClass() {
   return "h-9 rounded-md border border-[var(--surface-border)] bg-transparent px-3 text-sm text-[var(--surface-fg)] shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 }
 
+function isRelayEligible(provider: CredentialProviderKind): provider is RelayTtsProviderKind {
+  return (RELAY_TTS_PROVIDERS as readonly string[]).includes(provider);
+}
+
 function AddCredentialForm() {
   const [provider, setProvider] = useState<CredentialProviderKind>("openai");
   const [label, setLabel] = useState("");
   const [secret, setSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [viaRelay, setViaRelay] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const createCredential = useCreateCredential();
 
   const keyed = KEYED_PROVIDERS.has(provider);
+  const relayEligible = isRelayEligible(provider);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,11 +114,13 @@ function AddCredentialForm() {
         provider,
         label: label.trim(),
         secret: secret.trim() || undefined,
-        baseUrl: baseUrl.trim() || undefined,
+        baseUrl: relayEligible && viaRelay ? undefined : baseUrl.trim() || undefined,
+        viaRelay: relayEligible && viaRelay ? true : undefined,
       });
       setLabel("");
       setSecret("");
       setBaseUrl("");
+      setViaRelay(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save that credential");
     }
@@ -146,17 +161,29 @@ function AddCredentialForm() {
           />
         </label>
       )}
-      {!keyed && (
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
-          Base URL
-          <Input
-            placeholder={BASE_URL_PLACEHOLDERS[provider]}
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            autoComplete="off"
-          />
-          {BASE_URL_HELP[provider] && <span className="font-normal text-[var(--surface-muted)]">{BASE_URL_HELP[provider]}</span>}
+      {relayEligible && (
+        <label className="flex items-center gap-2 text-xs font-medium text-[var(--surface-muted)]">
+          <input type="checkbox" checked={viaRelay} onChange={(e) => setViaRelay(e.target.checked)} />
+          Route through my local relay agent instead of a base URL
         </label>
+      )}
+      {relayEligible && viaRelay ? (
+        <p className="text-xs text-[var(--surface-muted)]">
+          Requires a connected relay agent — set one up below under "Local TTS relay".
+        </p>
+      ) : (
+        !keyed && (
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+            Base URL
+            <Input
+              placeholder={BASE_URL_PLACEHOLDERS[provider]}
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              autoComplete="off"
+            />
+            {BASE_URL_HELP[provider] && <span className="font-normal text-[var(--surface-muted)]">{BASE_URL_HELP[provider]}</span>}
+          </label>
+        )
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -187,7 +214,8 @@ function CredentialsList() {
               {PROVIDER_LABELS[c.provider]}
             </Badge>
             <span className="truncate font-medium">{c.label}</span>
-            {c.baseUrl && <span className="truncate text-xs text-[var(--surface-muted)]">{c.baseUrl}</span>}
+            {c.viaRelay && <span className="truncate text-xs text-[var(--surface-muted)]">via local relay agent</span>}
+            {!c.viaRelay && c.baseUrl && <span className="truncate text-xs text-[var(--surface-muted)]">{c.baseUrl}</span>}
             {c.hasSecret && <span className="text-xs text-[var(--surface-muted)]">key on file</span>}
           </div>
           <Button
@@ -202,6 +230,146 @@ function CredentialsList() {
         </li>
       ))}
     </ul>
+  );
+}
+
+// Shows a freshly created pairing token exactly once — the API never
+// returns the raw value again after creation (RelayAgentTokenDTO omits it).
+function NewTokenReveal({ token, onDismiss }: { token: string; onDismiss: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      toast("Token copied to clipboard.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast("Couldn't copy — select and copy the token manually.", "error");
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+      <p className="font-medium text-[var(--surface-fg)]">
+        Copy this token now — it won't be shown again. Paste it as <code>DISTILL_RELAY_TOKEN</code> when starting the
+        relay agent.
+      </p>
+      <div className="flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded bg-[var(--surface-border)]/30 px-2 py-1 text-xs">{token}</code>
+        <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+          <CopyIcon className="size-3.5" />
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <Button type="button" variant="ghost" size="sm" className="self-start" onClick={onDismiss}>
+        Done
+      </Button>
+    </div>
+  );
+}
+
+function RelayStatusBadge() {
+  const { data: status } = useRelayStatus();
+  if (!status) return null;
+  return status.connected ? (
+    <Badge className="border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+      Agent connected
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="border-[var(--surface-border)] text-[var(--surface-muted)]">
+      {status.lastSeenAt ? `Not connected — last seen ${new Date(status.lastSeenAt).toLocaleString()}` : "No agent has connected yet"}
+    </Badge>
+  );
+}
+
+function RelayTokensList() {
+  const { data: tokens = [], isLoading } = useRelayTokens();
+  const deleteToken = useDeleteRelayToken();
+
+  if (isLoading) return <p className="text-sm text-[var(--surface-muted)]">Loading…</p>;
+  if (tokens.length === 0) return <p className="text-sm text-[var(--surface-muted)]">No pairing tokens yet.</p>;
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {tokens.map((t) => (
+        <li
+          key={t.id}
+          className="flex items-center justify-between gap-2 rounded-md border border-[var(--surface-border)] px-3 py-2 text-sm"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium">{t.label}</span>
+            <span className="truncate text-xs text-[var(--surface-muted)]">
+              {t.lastSeenAt ? `last seen ${new Date(t.lastSeenAt).toLocaleString()}` : "never connected"}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            title="Delete token"
+            onClick={() => deleteToken.mutate(t.id)}
+          >
+            <TrashIcon className="size-4 text-[var(--surface-muted)]" />
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AddRelayTokenForm({ onCreated }: { onCreated: (token: string) => void }) {
+  const [label, setLabel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const createToken = useCreateRelayToken();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      const result = await createToken.mutateAsync({ label: label.trim() });
+      setLabel("");
+      onCreated(result.token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not create that token");
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-md border border-[var(--surface-border)] p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+          Label
+          <Input placeholder="e.g. Home desktop" value={label} onChange={(e) => setLabel(e.target.value)} required />
+        </label>
+        <Button type="submit" size="sm" disabled={!label.trim() || createToken.isPending}>
+          {createToken.isPending ? "Creating…" : "New pairing token"}
+        </Button>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </form>
+  );
+}
+
+function RelayAgentSection() {
+  const [revealedToken, setRevealedToken] = useState<string | null>(null);
+
+  return (
+    <section className="mt-8 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-[var(--surface-fg)]">Local TTS relay</h2>
+        <RelayStatusBadge />
+      </div>
+      <p className="text-xs text-[var(--surface-muted)]">
+        Run Piper or Kokoro on your own machine and have this app dispatch synthesis to it — useful when the app
+        itself is cloud-hosted and can't reach a device on your home network directly. Create a pairing token below,
+        then start the relay agent (<code>docker compose --profile relay-agent up</code>) with it. Once connected,
+        add a Piper/Kokoro credential above with "Route through my local relay agent" checked.
+      </p>
+      {revealedToken && <NewTokenReveal token={revealedToken} onDismiss={() => setRevealedToken(null)} />}
+      <RelayTokensList />
+      <AddRelayTokenForm onCreated={setRevealedToken} />
+    </section>
   );
 }
 
@@ -712,6 +880,8 @@ export default function Settings() {
           <CredentialsList />
           <AddCredentialForm />
         </section>
+
+        <RelayAgentSection />
       </div>
     </div>
   );

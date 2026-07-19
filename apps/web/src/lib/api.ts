@@ -6,6 +6,7 @@ import type {
   BulkArticleAction,
   CreateCredentialInput,
   CreateFeedInput,
+  CreateRelayTokenInput,
   CredentialDTO,
   DiscoveredFeed,
   FeedDTO,
@@ -13,6 +14,9 @@ import type {
   PatchFeedInput,
   PatchSettingsInput,
   PatchTagInput,
+  RelayAgentTokenDTO,
+  RelayStatusDTO,
+  RelayTokenCreatedDTO,
   SettingsDTO,
   SummaryDTO,
   SummaryProviderKind,
@@ -155,6 +159,12 @@ export const api = {
   createCredential: (input: CreateCredentialInput) =>
     apiFetch<CredentialDTO>("/credentials", { method: "POST", body: JSON.stringify(input) }),
   deleteCredential: (id: string) => apiFetch<void>(`/credentials/${id}`, { method: "DELETE" }),
+
+  listRelayTokens: () => apiFetch<RelayAgentTokenDTO[]>("/relay/tokens"),
+  createRelayToken: (input: CreateRelayTokenInput) =>
+    apiFetch<RelayTokenCreatedDTO>("/relay/tokens", { method: "POST", body: JSON.stringify(input) }),
+  deleteRelayToken: (id: string) => apiFetch<void>(`/relay/tokens/${id}`, { method: "DELETE" }),
+  getRelayStatus: () => apiFetch<RelayStatusDTO>("/relay/status"),
 
   getSettings: () => apiFetch<SettingsDTO>("/settings"),
   updateSettings: (patch: PatchSettingsInput) =>

@@ -15,6 +15,7 @@ import type {
   ArticleView,
   CreateCredentialInput,
   CreateFeedInput,
+  CreateRelayTokenInput,
   FeedDTO,
   PatchFeedInput,
   PatchSettingsInput,
@@ -38,6 +39,8 @@ export const ttsAudioQueryKey = (articleId: string, source: TtsSource = "full") 
 export const ttsVoicesQueryKey = (provider: TtsProviderKind) => ["tts-voices", provider] as const;
 export const credentialsQueryKey = ["credentials"] as const;
 export const settingsQueryKey = ["settings"] as const;
+export const relayTokensQueryKey = ["relay-tokens"] as const;
+export const relayStatusQueryKey = ["relay-status"] as const;
 
 export function useFeeds() {
   return useQuery({ queryKey: feedsQueryKey, queryFn: api.listFeeds });
@@ -381,6 +384,38 @@ export function useDeleteCredential() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: credentialsQueryKey }),
     onError: () => toast("Couldn't delete that credential — try again.", "error"),
   });
+}
+
+export function useRelayTokens() {
+  return useQuery({ queryKey: relayTokensQueryKey, queryFn: api.listRelayTokens });
+}
+
+export function useCreateRelayToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateRelayTokenInput) => api.createRelayToken(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: relayTokensQueryKey }),
+  });
+}
+
+export function useDeleteRelayToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteRelayToken(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: relayTokensQueryKey });
+      queryClient.invalidateQueries({ queryKey: relayStatusQueryKey });
+    },
+    onError: () => toast("Couldn't delete that token — try again.", "error"),
+  });
+}
+
+// Polled rather than one-shot: whether an agent is connected can change at
+// any moment (the user's own machine going to sleep, losing network, etc.)
+// while the Settings page stays open, and there's no push channel from the
+// API to the browser for this.
+export function useRelayStatus() {
+  return useQuery({ queryKey: relayStatusQueryKey, queryFn: api.getRelayStatus, refetchInterval: 15_000 });
 }
 
 export function useSettings() {
