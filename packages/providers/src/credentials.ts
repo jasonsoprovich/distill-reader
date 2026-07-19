@@ -26,5 +26,6 @@ export async function resolveCredential(
   return {
     apiKey: row.secretEncrypted ? decryptSecret(row.secretEncrypted) : null,
     baseUrl: row.baseUrl,
+    viaRelay: row.viaRelay,
   };
 }

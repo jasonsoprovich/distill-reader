@@ -1,5 +1,5 @@
 import type { db as DbInstance } from "@distill/db";
-import type { TtsProviderKind, TtsTimings } from "@distill/shared";
+import { RELAY_TTS_PROVIDERS, type RelayTtsProviderKind, type TtsProviderKind, type TtsTimings } from "@distill/shared";
 import { resolveCredential } from "../credentials.js";
 import { chunkText } from "../summary/chunk.js";
 import type { ResolvedCredential } from "../summary/types.js";
@@ -15,7 +15,13 @@ import {
 } from "./models.js";
 import { createOpenAiTtsClient } from "./openai.js";
 import { createPiperClient } from "./piper.js";
-import { TtsProviderError, type TtsProviderClient, type TtsSynthesizeResult, type TtsVoiceInfo } from "./types.js";
+import {
+  TtsProviderError,
+  type RelayDispatcher,
+  type TtsProviderClient,
+  type TtsSynthesizeResult,
+  type TtsVoiceInfo,
+} from "./types.js";
 
 export * from "./audio-concat.js";
 export * from "./models.js";
@@ -23,7 +29,33 @@ export * from "./types.js";
 
 type Db = typeof DbInstance;
 
-function createClient(provider: TtsProviderKind, credential: ResolvedCredential): TtsProviderClient {
+function isRelayTtsProvider(provider: TtsProviderKind): provider is RelayTtsProviderKind {
+  return (RELAY_TTS_PROVIDERS as readonly string[]).includes(provider);
+}
+
+// Wraps a RelayDispatcher (implemented in apps/api, over the WebSocket to
+// the user's relay agent) as a plain TtsProviderClient so generateTts's
+// chunk/concat loop below needs no relay-specific branching — it's just
+// another transport behind the same interface as the direct-HTTP clients.
+function createRelayClient(userId: string, provider: RelayTtsProviderKind, dispatcher: RelayDispatcher): TtsProviderClient {
+  return {
+    provider,
+    synthesize: (req) => dispatcher.synthesize(userId, provider, req),
+    listVoices: () => dispatcher.listVoices(userId, provider),
+  };
+}
+
+function createClient(
+  userId: string,
+  provider: TtsProviderKind,
+  credential: ResolvedCredential,
+  relayDispatcher?: RelayDispatcher,
+): TtsProviderClient {
+  if (credential.viaRelay && isRelayTtsProvider(provider)) {
+    if (!relayDispatcher) throw new TtsProviderError(provider, "unavailable", "Relay dispatch is not configured");
+    return createRelayClient(userId, provider, relayDispatcher);
+  }
+
   switch (provider) {
     case "elevenlabs":
       if (!credential.apiKey) throw new TtsProviderError(provider, "auth", "No ElevenLabs API key configured");
@@ -48,6 +80,11 @@ export interface GenerateTtsOptions {
   voice?: string;
   model?: string;
   speed?: number;
+  // Required when the resolved credential is relay-backed (viaRelay); absent
+  // callers (e.g. the worker's purge job, which never generates TTS) simply
+  // never hit that branch. Injected rather than imported so this package
+  // stays free of app-level (apps/api) dependencies.
+  relayDispatcher?: RelayDispatcher;
 }
 
 export interface GenerateTtsResult {
@@ -113,7 +150,7 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
     throw new TtsProviderError(opts.provider, "auth", `No ${opts.provider} credential configured`);
   }
 
-  const client = createClient(opts.provider, credential);
+  const client = createClient(opts.userId, opts.provider, credential, opts.relayDispatcher);
   const voice = resolveTtsVoice(opts.provider, opts.voice);
   const model = resolveTtsModel(opts.provider, opts.model);
   const speed = opts.speed ?? 1;
@@ -156,8 +193,13 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
 }
 
 /** Lists the available voices for `provider` using the user's stored credential. */
-export async function listTtsVoices(db: Db, userId: string, provider: TtsProviderKind): Promise<TtsVoiceInfo[]> {
+export async function listTtsVoices(
+  db: Db,
+  userId: string,
+  provider: TtsProviderKind,
+  relayDispatcher?: RelayDispatcher,
+): Promise<TtsVoiceInfo[]> {
   const credential = await resolveCredential(db, userId, provider);
   if (!credential) throw new TtsProviderError(provider, "auth", `No ${provider} credential configured`);
-  return createClient(provider, credential).listVoices();
+  return createClient(userId, provider, credential, relayDispatcher).listVoices();
 }

@@ -36,4 +36,8 @@ export class SummaryProviderError extends Error {
 export interface ResolvedCredential {
   apiKey: string | null;
   baseUrl: string | null;
+  // Only meaningful for relay-eligible TTS providers (piper/kokoro) — see
+  // packages/shared's RELAY_TTS_PROVIDERS and tts/index.ts's relay branch.
+  // Always false for summary-only credentials.
+  viaRelay: boolean;
 }

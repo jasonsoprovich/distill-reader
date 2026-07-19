@@ -1,4 +1,4 @@
-import type { TtsProviderKind, TtsTimings } from "@distill/shared";
+import type { RelayTtsProviderKind, TtsProviderKind, TtsTimings } from "@distill/shared";
 
 export interface TtsSynthesizeRequest {
   text: string;
@@ -33,7 +33,22 @@ export interface TtsProviderClient {
   listVoices(): Promise<TtsVoiceInfo[]>;
 }
 
-export type TtsErrorCode = "auth" | "rate_limit" | "timeout" | "empty_response" | "unknown";
+// Implemented by apps/api's agent registry, injected into generateTts() so
+// this package never imports app-level code (keeping the existing
+// providers-has-no-app-deps direction intact). Dispatches a single job to
+// whichever relay agent is currently connected for `userId`, over the
+// WebSocket opened by apps/relay-agent — throws TtsProviderError(provider,
+// "unavailable", ...) when no agent is connected.
+export interface RelayDispatcher {
+  synthesize(userId: string, provider: RelayTtsProviderKind, req: TtsSynthesizeRequest): Promise<TtsSynthesizeResult>;
+  listVoices(userId: string, provider: RelayTtsProviderKind): Promise<TtsVoiceInfo[]>;
+}
+
+// "unavailable": the relay-backed provider has no agent currently connected
+// (packages/providers/src/tts/index.ts's relay branch) — distinct from
+// "auth" (bad/missing credential) since the credential is fine, the user's
+// machine just isn't online right now.
+export type TtsErrorCode = "auth" | "rate_limit" | "timeout" | "empty_response" | "unavailable" | "unknown";
 
 // Never fails silently (PLAN §7.2's "surface provider errors explicitly" —
 // the same anti-silent-failure rule as summaries, PLAN §6.3).

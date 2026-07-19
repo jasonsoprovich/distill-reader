@@ -1,4 +1,9 @@
-import { readCapped, safeFetch } from "@distill/extract";
+// Deep-imports the specific submodule rather than @distill/extract's root
+// barrel: that barrel also re-exports ingest.ts, which imports @distill/db
+// — and @distill/db throws at import time if DATABASE_URL isn't set
+// (packages/db/src/client.ts). apps/relay-agent uses this client with no
+// database of its own, so pulling that in transitively would crash it.
+import { readCapped, safeFetch } from "@distill/extract/net/safe-fetch.js";
 import { isTimeoutError } from "./http.js";
 import { TTS_REQUEST_TIMEOUT_MS } from "./models.js";
 import { TtsProviderError, type TtsSynthesizeRequest, type TtsSynthesizeResult, type TtsProviderClient, type TtsVoiceInfo } from "./types.js";

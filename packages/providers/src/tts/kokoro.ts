@@ -1,4 +1,6 @@
-import { readCapped, safeFetch } from "@distill/extract";
+// See piper.ts's identical import for why this is a deep import rather than
+// @distill/extract's root barrel.
+import { readCapped, safeFetch } from "@distill/extract/net/safe-fetch.js";
 import { classifyStatus, isTimeoutError } from "./http.js";
 import { TTS_REQUEST_TIMEOUT_MS } from "./models.js";
 import { TtsProviderError, type TtsSynthesizeRequest, type TtsSynthesizeResult, type TtsProviderClient, type TtsVoiceInfo } from "./types.js";
