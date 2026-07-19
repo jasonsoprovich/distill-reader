@@ -103,16 +103,18 @@ export const auth = betterAuth({
     enabled: true,
   },
   // This app never wires up an email-verification flow (single/allowlisted
-  // users, no signup-confirmation emails), so the seeded/setup account's
-  // emailVerified stays false forever. Better Auth's default account-linking
-  // gate requires that flag before it'll link a new OAuth provider to an
-  // existing user — without this, GitHub/Google sign-in can never link to
-  // the account that /setup or the seed script created, even with the
-  // correct, matching email. Trusting these two providers' own verified
-  // emails is the intended escape hatch for exactly this case.
+  // users, no signup-confirmation emails), so every local account's
+  // emailVerified stays false forever. Better Auth's account-linking gate
+  // has two independent checks that both have to pass before it'll link a
+  // new OAuth provider to an existing user: trustedProviders only satisfies
+  // the one that trusts the *provider's* claim the email is verified —
+  // requireLocalEmailVerified separately requires the *local* row's
+  // emailVerified to already be true, which it can never be here, so it
+  // has to be turned off too.
   account: {
     accountLinking: {
       trustedProviders: ["github", "google"],
+      requireLocalEmailVerified: false,
     },
   },
   socialProviders: buildSocialProviders(),
