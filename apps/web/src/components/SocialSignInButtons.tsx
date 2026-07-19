@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GithubIcon } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useSocialProviders } from "@/lib/setup";
@@ -33,11 +33,27 @@ export default function SocialSignInButtons() {
   const { data: socialProviders } = useSocialProviders();
   const [error, setError] = useState<string | null>(null);
 
+  // Better Auth resolves a *relative* callbackURL/errorCallbackURL against
+  // its own baseURL (the API's own origin), not this app's — a bare "/"
+  // was sending users to the API host itself post-callback instead of back
+  // here, so these have to be absolute URLs pointing at this app.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error");
+    if (!oauthError) return;
+    setError(oauthError);
+    params.delete("error");
+    const query = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+  }, []);
+
   async function signInWithSocial(provider: "github" | "google") {
     setError(null);
+    const here = window.location.origin + window.location.pathname;
     await authClient.signIn.social({
       provider,
-      callbackURL: "/",
+      callbackURL: `${window.location.origin}/`,
+      errorCallbackURL: here,
       fetchOptions: {
         onError: (ctx) => setError(ctx.error.message ?? "Sign in failed."),
       },
