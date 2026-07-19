@@ -119,8 +119,8 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
   const speed = opts.speed ?? 1;
 
   const chunks =
-    opts.articleText.length > TTS_MAX_SINGLE_PASS_CHARS
-      ? chunkText(opts.articleText, TTS_CHUNK_CHARS)
+    opts.articleText.length > TTS_MAX_SINGLE_PASS_CHARS[opts.provider]
+      ? chunkText(opts.articleText, TTS_CHUNK_CHARS[opts.provider])
       : [opts.articleText];
 
   const results: TtsSynthesizeResult[] = [];

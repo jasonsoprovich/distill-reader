@@ -42,8 +42,27 @@ export const TTS_REQUEST_TIMEOUT_MS = 60_000;
 // Long articles are split before synthesis (PLAN §7.2) so the first chunk
 // can play while the rest generate, and so no single request risks a
 // provider's own request-size ceiling.
-export const TTS_MAX_SINGLE_PASS_CHARS = 4_000;
-export const TTS_CHUNK_CHARS = 3_000;
+//
+// Piper and Kokoro run CPU-bound synthesis on a self-hosted sidecar rather
+// than a provisioned cloud GPU fleet, so they're far slower per character —
+// measured ~30 chars/sec against this repo's own Kokoro-FastAPI CPU
+// container, meaning a single 3,500-char request (under the cloud-provider
+// threshold below, so previously sent unchunked) took ~115s against a 60s
+// TTS_REQUEST_TIMEOUT_MS and reliably timed out. Their thresholds are kept
+// much smaller so every chunk finishes with comfortable margin under the
+// shared timeout even on slower hardware.
+export const TTS_MAX_SINGLE_PASS_CHARS: Record<TtsProviderKind, number> = {
+  elevenlabs: 4_000,
+  openai: 4_000,
+  piper: 1_200,
+  kokoro: 1_200,
+};
+export const TTS_CHUNK_CHARS: Record<TtsProviderKind, number> = {
+  elevenlabs: 3_000,
+  openai: 3_000,
+  piper: 1_000,
+  kokoro: 1_000,
+};
 
 // Cache-invalidation key (mirrors summary's SUMMARY_PROMPT_VERSION) — bump
 // when synthesis parameters change in a way that should miss old caches.
