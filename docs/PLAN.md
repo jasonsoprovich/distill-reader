@@ -288,6 +288,9 @@ Pluggable `TtsProvider` interface: `synthesize(text, voice, opts) → { audio, t
 
 - **ElevenLabs (`elevenlabs`)** — cloud, high-quality voices, **API key required**, per-character cost → caching matters. Supports streaming and word/character **timestamps** (used for highlight-follow). Store the key encrypted (§10).
 - **Piper (`piper`)** — local self-hosted neural TTS, **no key**, addressed via `base_url` exactly like Ollama. Runs as an optional sidecar container. Zero cost, nothing leaves the network. (The user already runs Piper on Apple Silicon for another project — known-good fit; default local option.)
+- **Kokoro (`kokoro`)** — same shape as Piper (local, self-hosted, no key), an OpenAI-compatible `/v1/audio/speech` API in front of the open-weight Kokoro-82M model. Optional sidecar container, own Compose profile.
+
+Both Piper and Kokoro have a second, cloud-hosted addressing mode: `api_credential.via_relay` marks a credential as **relay-backed** instead of `base_url`-backed. This exists because `base_url` only works when the api/worker process can reach the sidecar directly (same box or same Docker network) — a cloud-hosted deployment (Coolify) can't dial into a user's home machine behind NAT. `apps/relay-agent` runs on that home machine instead, connects *outward* to the cloud API over WebSocket (`GET /relay/agent`, authenticated by a `relay_agent_token` pairing token, not a session cookie), and holds the connection open; the API dispatches `synthesize`/`listVoices` jobs down that socket rather than ever fetching the sidecar itself. `apps/api/src/lib/agent-registry.ts` holds the in-process `userId → connection` map (single-API-instance assumption, same as on-demand TTS generation already running synchronously in that process) and implements `RelayDispatcher` — injected into `generateTts()`/`listTtsVoices()` so `packages/providers` never imports app-level code. See the README's "Running TTS on your own hardware" section for the operator-facing setup flow.
 
 ### 7.2 Behavior
 - **Default: on-demand with caching**, same shape as summaries. Cache key is `(article_id, user_id, provider, voice, format, source, settings_version)` (§4). Hit → serve stored audio. Miss → synthesize, persist to the audio volume, write the `tts_audio` row, serve.
@@ -387,8 +390,14 @@ GET    /settings
 PATCH  /settings
 
 GET    /credentials                 # metadata only, never secrets
-POST   /credentials                 # { provider, label, secret?, baseUrl? }
+POST   /credentials                 # { provider, label, secret?, baseUrl?, viaRelay? }
 DELETE /credentials/:id
+
+GET    /relay/tokens                # relay agent pairing tokens, hash only
+POST   /relay/tokens                # { label } → raw token returned once
+DELETE /relay/tokens/:id
+GET    /relay/status                # { connected, lastSeenAt } — is an agent live right now
+GET    /relay/agent                 # WebSocket upgrade only — bearer pairing token, not a session cookie (§7.1)
 ```
 
 Use **cursor-based pagination** on `/articles` (keyed on `published_at, id`) — offset pagination won't scale.
