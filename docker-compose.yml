@@ -151,6 +151,16 @@ services:
       PIPER_VOICE: ${PIPER_VOICE:-en_US-lessac-medium}
     volumes:
       - piper_data:/data
+    ports:
+      # Published to the host (not just the compose network) so a
+      # host-run `pnpm dev` api/worker — the common local-dev flow per the
+      # README's `docker compose up -d postgres` step — can reach it at
+      # http://localhost:5001. Host port defaults to 5001, not the
+      # container's native 5000: macOS binds 5000 by default for AirPlay
+      # Receiver (ControlCenter), so 5000 silently fails to publish on Mac.
+      # Full-stack `docker compose up --build` deployments are unaffected —
+      # they can still use http://piper:5000 on the internal network.
+      - "${PIPER_PORT:-5001}:5000"
 
   # Enable with: docker compose --profile kokoro up. Pre-built image (no
   # Dockerfile of our own, unlike Piper) — Kokoro-FastAPI's images ship
@@ -162,6 +172,10 @@ services:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.6.0
     profiles: ["kokoro"]
     restart: unless-stopped
+    ports:
+      # Same reasoning as piper's port publish above — reachable at
+      # http://localhost:8880 from a host-run api/worker.
+      - "${KOKORO_PORT:-8880}:8880"
 
 volumes:
   postgres_data:

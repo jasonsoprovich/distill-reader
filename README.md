@@ -43,7 +43,12 @@ docker compose --profile piper up -d piper
 docker compose --profile kokoro up -d kokoro
 ```
 
-Then, in the app's Settings → API credentials, add a credential for the provider with its base URL — `http://piper:5000` for the bundled Piper sidecar, `http://kokoro:8880` for the bundled Kokoro-FastAPI sidecar, or your own instance's address if you're running one elsewhere (same idea for Ollama, typically `http://ollama:11434`). See `.env.example`'s `PIPER_BASE_URL`/`KOKORO_BASE_URL`/`OLLAMA_BASE_URL`/`PIPER_VOICE` for the matching operator-side config. Kokoro ships every built-in voice baked into its image, so — unlike Piper — there's no separate voice-download env var to set.
+Then, in the app's Settings → API credentials, add a credential for the provider with its base URL. Both sidecars publish to the host as well as the compose network, so which URL to use depends on where the api/worker process itself is running:
+
+- Host-run api/worker (`pnpm dev`, the flow above) — use `http://localhost:5001` (Piper) / `http://localhost:8880` (Kokoro). Piper's host port defaults to 5001, not 5000, because macOS binds 5000 by default for AirPlay Receiver.
+- Full-stack `docker compose up --build` (api/worker also containerized) — use the internal compose hostnames instead: `http://piper:5000` / `http://kokoro:8880`.
+
+Same idea for Ollama, typically `http://localhost:11434` or `http://ollama:11434` depending on which of the above applies. See `.env.example`'s `PIPER_BASE_URL`/`KOKORO_BASE_URL`/`OLLAMA_BASE_URL`/`PIPER_VOICE` for the matching operator-side config. Kokoro ships every built-in voice baked into its image, so — unlike Piper — there's no separate voice-download env var to set.
 
 ### Optional: OAuth sign-in (GitHub, Google)
 
