@@ -177,6 +177,37 @@ services:
       # http://localhost:8880 from a host-run api/worker.
       - "${KOKORO_PORT:-8880}:8880"
 
+  # Enable with: docker compose --profile relay-agent up. Runs on the SAME
+  # machine as piper/kokoro above (a user's own PC), not on the cloud
+  # deployment — connects outbound to a cloud-hosted Distill instance so it
+  # can dispatch TTS synthesis to this hardware without the cloud ever
+  # needing an inbound connection into this machine's network. Irrelevant
+  # to the local (docker compose up -d postgres + pnpm dev) flow, where the
+  # api already reaches piper/kokoro directly via their published ports
+  # above — this profile is for pointing a *cloud* deployment at local
+  # hardware. Get DISTILL_RELAY_TOKEN from Settings → Local TTS relay in the
+  # cloud app first.
+  relay-agent:
+    build:
+      context: .
+      dockerfile: apps/relay-agent/Dockerfile
+    profiles: ["relay-agent"]
+    restart: unless-stopped
+    environment:
+      # Required for this profile to actually work — see .env.example's
+      # DISTILL_CLOUD_URL/DISTILL_RELAY_TOKEN comments. Left as plain
+      # optional interpolation (not docker compose's ${VAR:?msg} required-var
+      # syntax) since compose validates every service's interpolations
+      # eagerly regardless of active profile — using :? here would break
+      # plain `docker compose up -d postgres` for everyone, not just people
+      # who enable this profile.
+      DISTILL_CLOUD_URL: ${DISTILL_CLOUD_URL}
+      DISTILL_RELAY_TOKEN: ${DISTILL_RELAY_TOKEN}
+      # Same env vars as the piper/kokoro services above — point at whichever
+      # of them this agent should expose to the cloud. At least one required.
+      PIPER_BASE_URL: ${PIPER_BASE_URL}
+      KOKORO_BASE_URL: ${KOKORO_BASE_URL}
+
 volumes:
   postgres_data:
   audio_storage:
