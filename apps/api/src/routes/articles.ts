@@ -16,6 +16,7 @@ import {
   TtsProviderError,
 } from "@distill/providers";
 import {
+  bulkArticlesSchema,
   clearArticleSchema,
   listArticlesQuerySchema,
   markReadSchema,
@@ -29,6 +30,7 @@ import type {
   ArticleDetailDTO,
   ArticleListItemDTO,
   ArticlesPage,
+  ArticleView,
   SummaryDTO,
   SummaryProviderKind,
   TtsAudioDTO,
@@ -99,12 +101,14 @@ async function upsertArticleState(
   return row;
 }
 
-articlesRouter.get("/", async (c) => {
-  const userId = c.get("userId");
-  const query = listArticlesQuerySchema.safeParse(c.req.query());
-  if (!query.success) return c.json({ message: "Invalid query", issues: query.error.issues }, 400);
-  const { feedId, tagId, view, cursor, limit, sortDir } = query.data;
-
+// Shared by the list endpoint and the bulk-action endpoint below, so
+// "act on everything in this grouping" targets exactly what's on screen —
+// same feedId/tagId scoping, same view semantics — rather than drifting
+// out of sync with what the list query considers a match.
+function articleFilterConditions(
+  userId: string,
+  { feedId, tagId, view }: { feedId?: string; tagId?: string; view?: ArticleView },
+) {
   const conditions = [eq(article.userId, userId)];
   if (feedId) conditions.push(eq(article.feedId, feedId));
   if (tagId) {
@@ -125,6 +129,16 @@ articlesRouter.get("/", async (c) => {
     // Default view excludes removed ("cleared") articles.
     conditions.push(isNull(articleState.clearedAt));
   }
+  return conditions;
+}
+
+articlesRouter.get("/", async (c) => {
+  const userId = c.get("userId");
+  const query = listArticlesQuerySchema.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "Invalid query", issues: query.error.issues }, 400);
+  const { feedId, tagId, view, cursor, limit, sortDir } = query.data;
+
+  const conditions = articleFilterConditions(userId, { feedId, tagId, view });
   if (cursor) {
     const decoded = decodeCursor(cursor);
     if (!decoded) return c.json({ message: "Invalid cursor" }, 400);
@@ -215,6 +229,47 @@ articlesRouter.post("/read-all", async (c) => {
     .insert(articleState)
     .values(targets.map((t) => ({ userId, articleId: t.id, readAt: now })))
     .onConflictDoUpdate({ target: [articleState.userId, articleState.articleId], set: { readAt: now } });
+
+  return c.json({ updated: targets.length });
+});
+
+// Applies one action to every article matching the current grouping
+// (feedId/tagId/view — same filter the list endpoint uses), not just the
+// page(s) the client has fetched — backs the article list's "select all"
+// control so bulk actions cover an entire feed/tag/view in one request
+// instead of requiring the user to page through and re-select.
+articlesRouter.post("/bulk", async (c) => {
+  const userId = c.get("userId");
+  const body = bulkArticlesSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+  const { feedId, tagId, view, action } = body.data;
+
+  const conditions = articleFilterConditions(userId, { feedId, tagId, view });
+  const targets = await db
+    .select({ id: article.id })
+    .from(article)
+    .leftJoin(articleState, articleStateJoin(userId))
+    .where(and(...conditions));
+  if (!targets.length) return c.json({ updated: 0 });
+
+  const now = new Date();
+  const patch = action === "read" ? { readAt: now } : action === "star" ? { starred: true } : { clearedAt: now };
+
+  await db
+    .insert(articleState)
+    .values(targets.map((t) => ({ userId, articleId: t.id, ...patch })))
+    .onConflictDoUpdate({ target: [articleState.userId, articleState.articleId], set: patch });
+
+  // Mirrors the single-article clear route: dropped articles lose their
+  // cached narration too.
+  if (action === "clear") {
+    await deleteTtsAudioRows(
+      and(
+        inArray(ttsAudio.articleId, targets.map((t) => t.id)),
+        eq(ttsAudio.userId, userId),
+      ),
+    );
+  }
 
   return c.json({ updated: targets.length });
 });

@@ -24,7 +24,7 @@ import type {
   TtsProviderKind,
   TtsSource,
 } from "@distill/shared";
-import { api, ApiError, type ReadAllParams } from "./api";
+import { api, ApiError, type BulkArticlesParams, type ReadAllParams } from "./api";
 import { toast } from "./toast";
 
 export const feedsQueryKey = ["feeds"] as const;
@@ -268,6 +268,18 @@ export function useReadAll() {
       queryClient.invalidateQueries({ queryKey: feedsQueryKey });
     },
     onError: () => toast("Couldn't mark all as read — try again.", "error"),
+  });
+}
+
+export function useBulkArticles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: BulkArticlesParams) => api.bulkArticles(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+    },
+    onError: () => toast("Couldn't apply that to every matching article — try again.", "error"),
   });
 }
 

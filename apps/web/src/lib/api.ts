@@ -3,6 +3,7 @@ import type {
   ArticlesPage,
   ArticleSortDirection,
   ArticleView,
+  BulkArticleAction,
   CreateCredentialInput,
   CreateFeedInput,
   CredentialDTO,
@@ -59,6 +60,13 @@ export interface ReadAllParams {
   tagId?: string;
 }
 
+export interface BulkArticlesParams {
+  feedId?: string;
+  tagId?: string;
+  view?: ArticleView;
+  action: BulkArticleAction;
+}
+
 export const api = {
   listFeeds: () => apiFetch<FeedDTO[]>("/feeds"),
   previewFeed: (url: string) =>
@@ -105,6 +113,8 @@ export const api = {
     }),
   readAllArticles: (params: ReadAllParams) =>
     apiFetch<{ updated: number }>("/articles/read-all", { method: "POST", body: JSON.stringify(params) }),
+  bulkArticles: (params: BulkArticlesParams) =>
+    apiFetch<{ updated: number }>("/articles/bulk", { method: "POST", body: JSON.stringify(params) }),
 
   getSummary: async (articleId: string) => {
     try {

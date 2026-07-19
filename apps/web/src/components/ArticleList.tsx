@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDownWideNarrowIcon,
   ArrowLeftIcon,
   ArrowUpNarrowWideIcon,
   CheckCheckIcon,
+  CheckIcon,
   StarIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
 import type { ArticleSortDirection } from "@distill/shared";
 import { Button } from "@/components/ui/button";
-import { useArticles, useClearArticle, useMarkRead, useReadAll, useStarArticle } from "@/lib/hooks";
+import { useArticles, useBulkArticles, useClearArticle, useMarkRead, useReadAll, useStarArticle } from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +54,7 @@ export default function ArticleList({
   const starArticle = useStarArticle();
   const clearArticle = useClearArticle();
   const readAll = useReadAll();
+  const bulkArticles = useBulkArticles();
   const articles = data?.pages.flatMap((page) => page.items) ?? [];
 
   // Marking-all-read is meaningless in the Removed view (those articles are
@@ -60,8 +62,23 @@ export default function ArticleList({
   const canMarkAllRead = !(selection.kind === "view" && selection.view === "cleared");
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // True once "select all" has been used: the action bar then targets every
+  // article matching this feed/tag/view server-side (via the /bulk
+  // endpoint), not just what's been paged into selectedIds — otherwise
+  // clearing/reading/starring "everything" in a large feed would mean
+  // clicking "Load more" over and over first.
+  const [selectAllScope, setSelectAllScope] = useState(false);
   const [isBulkPending, setIsBulkPending] = useState(false);
-  const selectMode = selectedIds.size > 0;
+  const selectMode = selectedIds.size > 0 || selectAllScope;
+  const allSelected = selectAllScope || (articles.length > 0 && articles.every((a) => selectedIds.has(a.id)));
+
+  // Keeps selectedIds in sync with newly paged-in articles while "select
+  // all" is active, so a row loaded via "Load more" after the fact renders
+  // checked too and toggling it off behaves sanely.
+  useEffect(() => {
+    if (selectAllScope) setSelectedIds(new Set(articles.map((a) => a.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectAllScope, articles.length]);
 
   function toggleSortDir() {
     const next = sortDir === "desc" ? "asc" : "desc";
@@ -69,7 +86,16 @@ export default function ArticleList({
     window.localStorage.setItem(SORT_DIR_STORAGE_KEY, next);
   }
 
+  function clearSelection() {
+    setSelectAllScope(false);
+    setSelectedIds(new Set());
+  }
+
   function toggleSelected(id: string) {
+    // Deselecting one article out of an all-matching selection can't be
+    // represented for articles that aren't loaded yet, so it drops back to
+    // an explicit, page-local selection instead.
+    setSelectAllScope(false);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -78,25 +104,47 @@ export default function ArticleList({
     });
   }
 
+  function toggleSelectAll() {
+    if (allSelected) {
+      clearSelection();
+    } else {
+      setSelectAllScope(true);
+      setSelectedIds(new Set(articles.map((a) => a.id)));
+    }
+  }
+
   // Existing per-article mutations, fired once per selected id — each is
   // independently optimistic and settles by invalidating the shared
   // ["articles"] query, so N requests converge correctly without a
   // dedicated bulk endpoint (fine for the handful-to-dozens selections a
-  // user makes by hand; not meant for "select thousands").
+  // user makes by hand).
   async function runBulk(action: (id: string) => Promise<unknown>) {
     setIsBulkPending(true);
     try {
       await Promise.all([...selectedIds].map(action));
     } finally {
       setIsBulkPending(false);
-      setSelectedIds(new Set());
+      clearSelection();
+    }
+  }
+
+  // Used instead of runBulk once "select all" is active — a single request
+  // scoped to the current feedId/tagId/view, applied server-side to every
+  // matching article regardless of how many pages have been fetched.
+  async function runScopedBulk(action: "read" | "star" | "clear") {
+    setIsBulkPending(true);
+    try {
+      await bulkArticles.mutateAsync({ feedId, tagId, view, action });
+    } finally {
+      setIsBulkPending(false);
+      clearSelection();
     }
   }
 
   return (
     <section
       className={cn(
-        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)] md:w-96",
+        "flex w-full flex-1 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)] md:w-96 md:flex-none md:shrink-0",
         className,
       )}
     >
@@ -105,17 +153,34 @@ export default function ArticleList({
           {selectMode ? (
             <>
               <div className="flex min-w-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  title={allSelected ? "Deselect all" : "Select all"}
+                  className="flex shrink-0 items-center justify-center p-1"
+                >
+                  <span
+                    className={cn(
+                      "flex size-4 items-center justify-center rounded-full border transition-colors",
+                      allSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-[var(--surface-border)]",
+                    )}
+                  >
+                    {allSelected && <CheckIcon className="size-3" />}
+                  </span>
+                </button>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="size-6 shrink-0"
                   title="Clear selection"
-                  onClick={() => setSelectedIds(new Set())}
+                  onClick={clearSelection}
                 >
                   <XIcon className="size-4 text-[var(--surface-muted)]" />
                 </Button>
                 <span className="truncate text-xs font-medium text-[var(--surface-muted)]">
-                  {selectedIds.size} selected
+                  {selectAllScope ? "All selected" : `${selectedIds.size} selected`}
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-0.5">
@@ -125,7 +190,9 @@ export default function ArticleList({
                   className="size-7"
                   title="Mark read"
                   disabled={isBulkPending}
-                  onClick={() => runBulk((id) => markRead.mutateAsync({ id, read: true }))}
+                  onClick={() =>
+                    selectAllScope ? runScopedBulk("read") : runBulk((id) => markRead.mutateAsync({ id, read: true }))
+                  }
                 >
                   <CheckCheckIcon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
@@ -135,7 +202,11 @@ export default function ArticleList({
                   className="size-7"
                   title="Star"
                   disabled={isBulkPending}
-                  onClick={() => runBulk((id) => starArticle.mutateAsync({ id, starred: true }))}
+                  onClick={() =>
+                    selectAllScope
+                      ? runScopedBulk("star")
+                      : runBulk((id) => starArticle.mutateAsync({ id, starred: true }))
+                  }
                 >
                   <StarIcon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
@@ -145,7 +216,11 @@ export default function ArticleList({
                   className="size-7"
                   title="Remove"
                   disabled={isBulkPending}
-                  onClick={() => runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))}
+                  onClick={() =>
+                    selectAllScope
+                      ? runScopedBulk("clear")
+                      : runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))
+                  }
                 >
                   <Trash2Icon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
@@ -165,6 +240,24 @@ export default function ArticleList({
                     <ArrowLeftIcon className="size-4 text-[var(--surface-muted)]" />
                   </Button>
                 )}
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  title={allSelected ? "Deselect all" : "Select all"}
+                  disabled={articles.length === 0}
+                  className="flex shrink-0 items-center justify-center p-1 disabled:opacity-30"
+                >
+                  <span
+                    className={cn(
+                      "flex size-4 items-center justify-center rounded-full border transition-colors",
+                      allSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-[var(--surface-border)]",
+                    )}
+                  >
+                    {allSelected && <CheckIcon className="size-3" />}
+                  </span>
+                </button>
                 <span className="truncate text-xs font-medium text-[var(--surface-muted)]">Articles</span>
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -227,14 +320,29 @@ export default function ArticleList({
                 selectedArticleId === article.id ? "bg-[var(--surface-active)]" : "hover:bg-[var(--surface-hover)]",
               )}
             >
-              <label className="flex shrink-0 cursor-pointer items-start py-3 pl-3">
+              <label
+                className={cn(
+                  "flex shrink-0 cursor-pointer items-start py-3 pl-3",
+                  !isChecked && "md:invisible md:group-hover:visible",
+                )}
+              >
                 <input
                   type="checkbox"
-                  className="mt-1 size-3.5 cursor-pointer accent-[var(--surface-fg)]"
+                  className="sr-only"
                   checked={isChecked}
                   onChange={() => toggleSelected(article.id)}
                   onClick={(e) => e.stopPropagation()}
                 />
+                <span
+                  className={cn(
+                    "mt-1 flex size-4 items-center justify-center rounded-full border transition-colors",
+                    isChecked
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-[var(--surface-border)] hover:border-[var(--surface-fg)]",
+                  )}
+                >
+                  {isChecked && <CheckIcon className="size-3" />}
+                </span>
               </label>
               <button
                 type="button"

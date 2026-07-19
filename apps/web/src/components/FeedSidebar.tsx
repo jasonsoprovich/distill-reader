@@ -396,7 +396,7 @@ function DeleteTagButton({ tag, onDeleted }: { tag: TagDTO; onDeleted: () => voi
 
 function navButtonClass(active: boolean) {
   return cn(
-    "flex w-full items-center rounded-md px-2 py-1.5 text-sm",
+    "flex w-full items-center rounded-md px-2 py-2 text-base md:py-1.5 md:text-sm",
     active ? "bg-[var(--surface-active)] font-medium" : "hover:bg-[var(--surface-hover)]",
   );
 }
@@ -425,7 +425,7 @@ export default function FeedSidebar({
   return (
     <aside
       className={cn(
-        "flex w-full shrink-0 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)]",
+        "flex w-full flex-1 flex-col border-r border-[var(--surface-border)] bg-[var(--surface-bg)] md:flex-none md:shrink-0",
         collapsed ? "md:w-12" : "md:w-64",
         className,
       )}
@@ -539,7 +539,7 @@ export default function FeedSidebar({
               type="button"
               onClick={() => onSelect({ kind: "feed", id: feed.id })}
               className={cn(
-                "flex flex-1 items-center gap-2 truncate rounded-md px-2 py-1.5 text-left text-sm",
+                "flex flex-1 items-center gap-2 truncate rounded-md px-2 py-2 text-left text-base md:py-1.5 md:text-sm",
                 selection.kind === "feed" && selection.id === feed.id
                   ? "bg-[var(--surface-active)] font-medium"
                   : "hover:bg-[var(--surface-hover)]",
@@ -568,9 +568,10 @@ export default function FeedSidebar({
 
       <div
         className={cn(
-          "flex shrink-0 items-center justify-between border-t border-[var(--surface-border)] px-4 py-2.5",
+          "flex shrink-0 items-center justify-between border-t border-[var(--surface-border)] px-4 pt-2.5",
           collapsed && "md:flex-col md:gap-2 md:px-2",
         )}
+        style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}
       >
         <Link
           to="/settings"
@@ -578,7 +579,7 @@ export default function FeedSidebar({
           className="flex items-center gap-2 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
         >
           <SettingsIcon className="size-4 shrink-0" />
-          <span className={cn("text-sm", collapsed && "md:hidden")}>Settings</span>
+          <span className={cn("text-base md:text-sm", collapsed && "md:hidden")}>Settings</span>
         </Link>
         <button
           type="button"
@@ -587,7 +588,7 @@ export default function FeedSidebar({
           className="flex items-center gap-2 text-[var(--surface-muted)] hover:text-[var(--surface-fg)]"
         >
           <LogOutIcon className="size-4 shrink-0" />
-          <span className={cn("text-sm", collapsed && "md:hidden")}>Sign out</span>
+          <span className={cn("text-base md:text-sm", collapsed && "md:hidden")}>Sign out</span>
         </button>
       </div>
     </aside>

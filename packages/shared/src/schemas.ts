@@ -77,6 +77,20 @@ export const readAllSchema = z.object({
 });
 export type ReadAllInput = z.infer<typeof readAllSchema>;
 
+// Scoped by the same feedId/tagId/view filters as the list endpoint, so
+// "select all" in the UI can act on every article matching the current
+// grouping — not just the page(s) already fetched into the client.
+export const BULK_ARTICLE_ACTIONS = ["read", "star", "clear"] as const;
+export type BulkArticleAction = (typeof BULK_ARTICLE_ACTIONS)[number];
+
+export const bulkArticlesSchema = z.object({
+  feedId: z.uuid().optional(),
+  tagId: z.uuid().optional(),
+  view: z.enum(ARTICLE_VIEWS).optional(),
+  action: z.enum(BULK_ARTICLE_ACTIONS),
+});
+export type BulkArticlesInput = z.infer<typeof bulkArticlesSchema>;
+
 // Providers that require a secret key; ollama/piper are self-hosted and
 // addressed via baseUrl instead (PLAN §7.1/§10.3).
 const KEYED_CREDENTIAL_PROVIDERS = new Set(["openai", "anthropic", "elevenlabs"]);
