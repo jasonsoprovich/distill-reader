@@ -18,6 +18,7 @@ function toDTO(row: typeof apiCredential.$inferSelect): CredentialDTO {
     provider: row.provider,
     label: row.label,
     baseUrl: row.baseUrl,
+    viaRelay: row.viaRelay,
     hasSecret: row.secretEncrypted != null,
     createdAt: row.createdAt.toISOString(),
   };
@@ -41,7 +42,7 @@ credentialsRouter.post("/", async (c) => {
   const denial = await checkByokAllowed(userId);
   if (denial) return c.json(denial, 402);
 
-  const { provider, label, secret, baseUrl } = body.data;
+  const { provider, label, secret, baseUrl, viaRelay } = body.data;
   const [row] = await db
     .insert(apiCredential)
     .values({
@@ -50,6 +51,7 @@ credentialsRouter.post("/", async (c) => {
       label,
       secretEncrypted: secret ? encryptSecret(secret) : null,
       baseUrl: baseUrl ?? null,
+      viaRelay: viaRelay ?? false,
     })
     .returning();
 

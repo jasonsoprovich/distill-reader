@@ -26,6 +26,7 @@ import {
   starArticleSchema,
   updatePlaybackPositionSchema,
 } from "@distill/shared";
+import { relayDispatcher } from "../lib/agent-registry.js";
 import type {
   ArticleDetailDTO,
   ArticleListItemDTO,
@@ -586,7 +587,7 @@ function toTtsAudioDTO(row: typeof ttsAudio.$inferSelect): TtsAudioDTO {
 
 // Maps a provider failure to a client-actionable status — never a bare 500
 // (same anti-silent-failure rule as summaries, PLAN §7.2).
-function statusForTtsError(code: TtsProviderError["code"]): 401 | 429 | 502 | 504 {
+function statusForTtsError(code: TtsProviderError["code"]): 401 | 429 | 502 | 503 | 504 {
   switch (code) {
     case "auth":
       return 401;
@@ -594,6 +595,10 @@ function statusForTtsError(code: TtsProviderError["code"]): 401 | 429 | 502 | 50
       return 429;
     case "timeout":
       return 504;
+    // The relay agent for this provider isn't currently connected — a
+    // transient state, not a broken credential (401) or a dead provider (502).
+    case "unavailable":
+      return 503;
     default:
       return 502;
   }
@@ -716,7 +721,7 @@ articlesRouter.post("/:id/tts", costlyRouteRateLimit, async (c) => {
   }
 
   try {
-    const result = await generateTts({ db, userId, provider, voice, model: model ?? undefined, articleText });
+    const result = await generateTts({ db, userId, provider, voice, model: model ?? undefined, articleText, relayDispatcher });
 
     // Hashed rather than built from the raw voice string, which may contain
     // characters unsafe in a filename (and is otherwise untrusted input).

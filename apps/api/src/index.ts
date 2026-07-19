@@ -1,20 +1,25 @@
 import { serve } from "@hono/node-server";
+import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { auth, trustedOrigins } from "./auth.js";
+import { agentRegistry } from "./lib/agent-registry.js";
 import { hasAnyUser, isSignupAllowed } from "./lib/users.js";
+import { requireRelayToken, type RelayAgentVariables } from "./middleware/relay-auth.js";
 import { authRateLimit, globalRateLimit } from "./middleware/rate-limit.js";
 import { articlesRouter } from "./routes/articles.js";
 import { credentialsRouter } from "./routes/credentials.js";
 import { feedsRouter } from "./routes/feeds.js";
 import { imagesRouter } from "./routes/images.js";
 import { meRouter } from "./routes/me.js";
+import { relayRouter } from "./routes/relay.js";
 import { settingsRouter } from "./routes/settings.js";
 import { tagsRouter } from "./routes/tags.js";
 import { ttsRouter } from "./routes/tts.js";
 
-const app = new Hono();
+const app = new Hono<{ Variables: RelayAgentVariables }>();
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
 // The signed image proxy is meant to be embedded cross-origin (the web
 // app's <img> tags) — the HMAC signature is what authorizes each request,
@@ -73,6 +78,11 @@ app.use("/credentials/*", jsonApiCors);
 app.use("/settings/*", jsonApiCors);
 app.use("/tts/*", jsonApiCors);
 app.use("/me/*", jsonApiCors);
+// Scoped to the REST token/status endpoints only — deliberately excludes
+// /relay/agent below, which is a WebSocket upgrade the relay agent (a Node
+// process, not a browser) connects to directly; it needs no CORS handling.
+app.use("/relay/tokens/*", jsonApiCors);
+app.use("/relay/status", jsonApiCors);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -109,6 +119,40 @@ app.post("/auth/sign-up/email", async (c) => {
 
 app.on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
 
+// Registered before app.route("/relay", relayRouter) below on purpose:
+// Hono runs matching middleware/handlers in registration order, and
+// relayRouter's own blanket requireAuth (its `.use("*", requireAuth)`,
+// mounted at the same /relay prefix) would otherwise intercept this path
+// first and reject it with a session-cookie 401 before requireRelayToken
+// — its actual, bearer-token auth — ever ran. The relay agent
+// (apps/relay-agent) connects here and holds the socket open, letting a
+// cloud-hosted deployment dispatch Piper/Kokoro synthesis to hardware it
+// could never dial into directly (NAT'd home machines). Rate-limited like
+// /auth/* since it's a bearer-token auth surface reachable pre-session. No
+// CORS: the agent is a Node `ws` client, not a browser, so no preflight
+// ever happens here.
+app.get(
+  "/relay/agent",
+  authRateLimit,
+  requireRelayToken,
+  upgradeWebSocket((c) => {
+    const userId = c.get("relayUserId");
+    let connection: ReturnType<typeof agentRegistry.register> | undefined;
+
+    return {
+      onOpen(_event, ws) {
+        connection = agentRegistry.register(userId, ws);
+      },
+      onMessage(event) {
+        connection?.handleAgentFrame(String(event.data));
+      },
+      onClose() {
+        if (connection) agentRegistry.unregister(userId, connection);
+      },
+    };
+  }),
+);
+
 app.route("/feeds", feedsRouter);
 app.route("/tags", tagsRouter);
 app.route("/articles", articlesRouter);
@@ -117,9 +161,11 @@ app.route("/credentials", credentialsRouter);
 app.route("/settings", settingsRouter);
 app.route("/tts", ttsRouter);
 app.route("/me", meRouter);
+app.route("/relay", relayRouter);
 
 const port = Number(process.env.API_PORT ?? 3001);
 
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`API listening on http://localhost:${info.port}`);
 });
+injectWebSocket(server);

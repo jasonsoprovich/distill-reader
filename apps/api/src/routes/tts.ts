@@ -7,6 +7,7 @@ import { TTS_PROVIDERS } from "@distill/shared";
 import type { TtsProviderKind, TtsVoiceDTO } from "@distill/shared";
 import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
+import { relayDispatcher } from "../lib/agent-registry.js";
 
 export const ttsRouter = new Hono<{ Variables: AuthVariables }>();
 ttsRouter.use("*", requireAuth);
@@ -34,10 +35,15 @@ ttsRouter.get("/voices", async (c) => {
   }
 
   try {
-    const voices: TtsVoiceDTO[] = await listTtsVoices(db, userId, provider);
+    const voices: TtsVoiceDTO[] = await listTtsVoices(db, userId, provider, relayDispatcher);
     return c.json(voices);
   } catch (err) {
-    const status = err instanceof TtsProviderError && err.code === "auth" ? 401 : 502;
+    const status =
+      err instanceof TtsProviderError && err.code === "auth"
+        ? 401
+        : err instanceof TtsProviderError && err.code === "unavailable"
+          ? 503
+          : 502;
     const message = err instanceof Error ? err.message : "Failed to list voices";
     return c.json({ message }, status);
   }
