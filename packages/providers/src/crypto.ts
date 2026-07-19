@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from "node:crypto";
 
 // AEAD encryption for stored provider API keys (PLAN §10.3). `ENCRYPTION_KEY`
 // is also used to HMAC-sign image-proxy URLs (packages/extract/src/image-proxy.ts);
@@ -34,4 +34,24 @@ export function decryptSecret(stored: Buffer): string {
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(authTag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf-8");
+}
+
+// Relay agent pairing tokens (relay_agent_token.token_hash): unlike the
+// provider secrets above, the server only ever needs to *compare* a token
+// presented by a connecting agent, never read it back — so these are
+// hashed, not encrypted. Plain SHA-256 (no server-side secret mixed in) is
+// the standard shape for bearer API tokens (GitHub PATs, Stripe keys work
+// the same way): security comes from the token's own 256 bits of entropy,
+// and hashing means a DB leak alone doesn't hand out working tokens.
+const RELAY_TOKEN_BYTES = 32;
+const RELAY_TOKEN_PREFIX = "relay_";
+
+/** Generates a new random pairing token to hand to the user once; only its hash is ever stored. */
+export function generateRelayToken(): string {
+  return RELAY_TOKEN_PREFIX + randomBytes(RELAY_TOKEN_BYTES).toString("base64url");
+}
+
+/** Hashes a relay pairing token for storage in / lookup against relay_agent_token.token_hash. */
+export function hashToken(token: string): Buffer {
+  return createHash("sha256").update(token, "utf-8").digest();
 }

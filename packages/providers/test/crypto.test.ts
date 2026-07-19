@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { decryptSecret, encryptSecret } from "../src/crypto.js";
+import { decryptSecret, encryptSecret, generateRelayToken, hashToken } from "../src/crypto.js";
 
 beforeEach(() => {
   process.env.ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
@@ -33,5 +33,30 @@ describe("encryptSecret / decryptSecret", () => {
   it("throws when ENCRYPTION_KEY is unset", () => {
     delete process.env.ENCRYPTION_KEY;
     expect(() => encryptSecret("x")).toThrow(/ENCRYPTION_KEY/);
+  });
+});
+
+describe("generateRelayToken / hashToken", () => {
+  it("generates unique, prefixed tokens", () => {
+    const a = generateRelayToken();
+    const b = generateRelayToken();
+    expect(a).toMatch(/^relay_/);
+    expect(a).not.toBe(b);
+  });
+
+  it("hashes deterministically — same token always hashes the same", () => {
+    const token = generateRelayToken();
+    expect(hashToken(token).equals(hashToken(token))).toBe(true);
+  });
+
+  it("hashes different tokens to different values", () => {
+    const a = hashToken(generateRelayToken());
+    const b = hashToken(generateRelayToken());
+    expect(a.equals(b)).toBe(false);
+  });
+
+  it("does not require ENCRYPTION_KEY (unlike encryptSecret/decryptSecret)", () => {
+    delete process.env.ENCRYPTION_KEY;
+    expect(() => hashToken("relay_whatever")).not.toThrow();
   });
 });
