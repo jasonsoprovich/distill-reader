@@ -15,6 +15,11 @@ export const previewFeedSchema = z.object({
 });
 export type PreviewFeedInput = z.infer<typeof previewFeedSchema>;
 
+export const addArticleFromUrlSchema = z.object({
+  url: z.url(),
+});
+export type AddArticleFromUrlInput = z.infer<typeof addArticleFromUrlSchema>;
+
 export const createFeedSchema = z.object({
   sourceUrl: z.url(),
   feedUrl: z.url(),

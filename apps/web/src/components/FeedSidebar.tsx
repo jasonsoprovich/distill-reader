@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZIcon,
   ArrowDownZAIcon,
+  BookmarkIcon,
   LogOutIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -11,6 +12,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import AddArticleDialog from "@/components/AddArticleDialog";
 import AddFeedDialog from "@/components/AddFeedDialog";
 import DistillLogo from "@/components/DistillLogo";
 import { Badge } from "@/components/ui/badge";
@@ -28,10 +30,12 @@ import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import {
+  useArticleCounts,
   useCreateTag,
   useDeleteFeed,
   useDeleteTag,
   useFeeds,
+  useReadingListFeed,
   useRefreshAllFeeds,
   useTags,
   useUpdateFeed,
@@ -396,9 +400,14 @@ function DeleteTagButton({ tag, onDeleted }: { tag: TagDTO; onDeleted: () => voi
 
 function navButtonClass(active: boolean) {
   return cn(
-    "flex w-full items-center rounded-md px-2 py-2 text-base md:py-1.5 md:text-sm",
+    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-base md:py-1.5 md:text-sm",
     active ? "bg-[var(--surface-active)] font-medium" : "hover:bg-[var(--surface-hover)]",
   );
+}
+
+function NavCount({ count }: { count?: number }) {
+  if (!count) return null;
+  return <span className="shrink-0 text-xs text-[var(--surface-muted)]">{count}</span>;
 }
 
 export default function FeedSidebar({
@@ -409,6 +418,8 @@ export default function FeedSidebar({
   onToggleCollapse,
 }: FeedSidebarProps) {
   const { data: feeds = [], isLoading, isError, refetch: refetchFeeds } = useFeeds();
+  const { data: counts } = useArticleCounts();
+  const { data: readingListFeed } = useReadingListFeed();
   const { data: tags = [] } = useTags();
   const refreshAllFeeds = useRefreshAllFeeds();
   const [sortMode, setSortMode] = useState<FeedSortMode>(loadFeedSortMode);
@@ -457,7 +468,8 @@ export default function FeedSidebar({
           header instead of leaving it pinned to the bottom. */}
       <nav className={cn("flex-1 overflow-y-auto px-2 py-3", collapsed && "md:invisible")}>
         <button type="button" onClick={() => onSelect({ kind: "all" })} className={navButtonClass(selection.kind === "all")}>
-          All
+          <span>All</span>
+          <NavCount count={counts?.all} />
         </button>
         {SMART_VIEWS.map((sv) => (
           <button
@@ -466,9 +478,33 @@ export default function FeedSidebar({
             onClick={() => onSelect({ kind: "view", view: sv.view })}
             className={navButtonClass(selection.kind === "view" && selection.view === sv.view)}
           >
-            {sv.label}
+            <span>{sv.label}</span>
+            <NavCount count={counts?.[sv.view]} />
           </button>
         ))}
+
+        {/* Saved articles (POST /articles/from-url) get their own fixed-size
+            section above Feeds — unlike Feeds, this never grows past one
+            entry, so it's a single row rather than a list. */}
+        <div className="mt-4 flex items-center justify-between px-2 pb-1">
+          <span className="text-xs font-medium text-[var(--surface-muted)]">Saved articles</span>
+          <AddArticleDialog />
+        </div>
+        <button
+          type="button"
+          onClick={() => readingListFeed && onSelect({ kind: "feed", id: readingListFeed.id })}
+          disabled={!readingListFeed}
+          className={cn(
+            navButtonClass(selection.kind === "feed" && selection.id === readingListFeed?.id),
+            !readingListFeed && "cursor-default opacity-40",
+          )}
+        >
+          <span className="flex min-w-0 items-center gap-2 truncate">
+            <BookmarkIcon className="size-3.5 shrink-0" />
+            Saved articles
+          </span>
+          <NavCount count={readingListFeed?.unreadCount} />
+        </button>
 
         {tags.length > 0 && (
           <>

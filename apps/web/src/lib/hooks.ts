@@ -8,6 +8,7 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import type {
+  AddArticleFromUrlInput,
   ArticleDetailDTO,
   ArticleListItemDTO,
   ArticlesPage,
@@ -29,9 +30,11 @@ import { api, ApiError, type BulkArticlesParams, type ReadAllParams } from "./ap
 import { toast } from "./toast";
 
 export const feedsQueryKey = ["feeds"] as const;
+export const readingListFeedQueryKey = ["reading-list-feed"] as const;
 export const tagsQueryKey = ["tags"] as const;
 export const articlesQueryKey = (feedId?: string, tagId?: string, view?: ArticleView, sortDir?: ArticleSortDirection) =>
   ["articles", { feedId, tagId, view, sortDir }] as const;
+export const articleCountsQueryKey = ["article-counts"] as const;
 export const articleQueryKey = (id: string) => ["article", id] as const;
 export const summaryQueryKey = (articleId: string) => ["summary", articleId] as const;
 export const ttsAudioQueryKey = (articleId: string, source: TtsSource = "full") =>
@@ -44,6 +47,13 @@ export const relayStatusQueryKey = ["relay-status"] as const;
 
 export function useFeeds() {
   return useQuery({ queryKey: feedsQueryKey, queryFn: api.listFeeds });
+}
+
+// The one feed listFeeds() deliberately excludes (see api.getReadingListFeed)
+// — backs FeedSidebar's "Saved articles" nav entry. Null until the user's
+// first saved article creates it.
+export function useReadingListFeed() {
+  return useQuery({ queryKey: readingListFeedQueryKey, queryFn: api.getReadingListFeed });
 }
 
 export function usePreviewFeed() {
@@ -147,6 +157,29 @@ export function useArticles(feedId?: string, tagId?: string, view?: ArticleView,
   });
 }
 
+export function useArticleCounts() {
+  return useQuery({ queryKey: articleCountsQueryKey, queryFn: api.getArticleCounts });
+}
+
+export function useAddArticleFromUrl() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AddArticleFromUrlInput) => api.addArticleFromUrl(input),
+    onSuccess: (article) => {
+      // Seeds the detail cache directly so opening the saved article in the
+      // reader (the dialog does this right after a successful save) doesn't
+      // wait on a redundant GET /articles/:id.
+      queryClient.setQueryData(articleQueryKey(article.id), article);
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      queryClient.invalidateQueries({ queryKey: readingListFeedQueryKey });
+      queryClient.invalidateQueries({ queryKey: articleCountsQueryKey });
+    },
+    onError: (err) => {
+      toast(err instanceof ApiError ? err.message : "Couldn't save that article — try again.", "error");
+    },
+  });
+}
+
 export function useArticle(id: string | null) {
   return useQuery({
     queryKey: articleQueryKey(id ?? "none"),
@@ -219,6 +252,8 @@ function settleArticleMutation(queryClient: QueryClient, id: string) {
   queryClient.invalidateQueries({ queryKey: ["articles"] });
   queryClient.invalidateQueries({ queryKey: articleQueryKey(id) });
   queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+  queryClient.invalidateQueries({ queryKey: readingListFeedQueryKey });
+  queryClient.invalidateQueries({ queryKey: articleCountsQueryKey });
 }
 
 export function useMarkRead() {
@@ -269,6 +304,8 @@ export function useReadAll() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["articles"] });
       queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+      queryClient.invalidateQueries({ queryKey: readingListFeedQueryKey });
+      queryClient.invalidateQueries({ queryKey: articleCountsQueryKey });
     },
     onError: () => toast("Couldn't mark all as read — try again.", "error"),
   });
@@ -281,6 +318,8 @@ export function useBulkArticles() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["articles"] });
       queryClient.invalidateQueries({ queryKey: feedsQueryKey });
+      queryClient.invalidateQueries({ queryKey: readingListFeedQueryKey });
+      queryClient.invalidateQueries({ queryKey: articleCountsQueryKey });
     },
     onError: () => toast("Couldn't apply that to every matching article — try again.", "error"),
   });

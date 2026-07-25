@@ -3,6 +3,7 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { article, articleState, auditLog, db, feed, feedTag, summary, ttsAudio, userSettings } from "@distill/db";
+import { extractArticle, sanitizeArticleHtml } from "@distill/extract";
 import {
   generateSummary,
   generateTts,
@@ -16,6 +17,7 @@ import {
   TtsProviderError,
 } from "@distill/providers";
 import {
+  addArticleFromUrlSchema,
   bulkArticlesSchema,
   clearArticleSchema,
   listArticlesQuerySchema,
@@ -28,6 +30,7 @@ import {
 } from "@distill/shared";
 import { relayDispatcher } from "../lib/agent-registry.js";
 import type {
+  ArticleCountsDTO,
   ArticleDetailDTO,
   ArticleListItemDTO,
   ArticlesPage,
@@ -42,6 +45,7 @@ import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
 import { checkAiAllowed } from "../lib/entitlements.js";
+import { findOrCreateReadingListFeed } from "../lib/reading-list.js";
 
 export const articlesRouter = new Hono<{ Variables: AuthVariables }>();
 articlesRouter.use("*", requireAuth);
@@ -196,6 +200,111 @@ articlesRouter.get("/", async (c) => {
     nextCursor: hasMore && last ? encodeCursor(last.sortTs, last.id) : null,
   };
   return c.json(response);
+});
+
+// Unread counts for the sidebar's All/Unread/Starred/Removed nav badges —
+// each counts unread articles within that view's own scope (mirrors
+// unreadCountsByFeedId in feeds.ts, just grouped by view instead of by
+// feed). Registered before GET /:id below so "counts" doesn't get swallowed
+// as an :id param.
+articlesRouter.get("/counts", async (c) => {
+  const userId = c.get("userId");
+  const [row] = await db
+    .select({
+      all: sql<number>`count(*) filter (where ${articleState.readAt} is null and ${articleState.clearedAt} is null)::int`,
+      starred: sql<number>`count(*) filter (where ${articleState.readAt} is null and ${articleState.starred} = true)::int`,
+      cleared: sql<number>`count(*) filter (where ${articleState.readAt} is null and ${articleState.clearedAt} is not null)::int`,
+    })
+    .from(article)
+    .leftJoin(articleState, articleStateJoin(userId))
+    .where(eq(article.userId, userId));
+
+  const all = row?.all ?? 0;
+  const counts: ArticleCountsDTO = { all, unread: all, starred: row?.starred ?? 0, cleared: row?.cleared ?? 0 };
+  return c.json(counts);
+});
+
+// Saves a single page as an article without subscribing to it as a feed
+// ("read later" / bad-formatting-on-the-original-site use case) — every
+// saved article attaches to one hidden per-user feed (findOrCreateReadingListFeed)
+// that GET /feeds filters out of the Feeds sidebar, so it shows up in the
+// article views (All/Unread/etc) without ever becoming a visible feed.
+// Re-saving the same URL is a no-op that returns the article already saved
+// for it (dedup on guid=url, same as a feed's own re-poll).
+articlesRouter.post("/from-url", costlyRouteRateLimit, async (c) => {
+  const userId = c.get("userId");
+  const body = addArticleFromUrlSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
+  const url = new URL(body.data.url).toString();
+
+  const readingListFeed = await findOrCreateReadingListFeed(userId);
+
+  // Never throws — a fetch/parse failure still yields a stub (empty,
+  // extractionStatus:"failed") row so the UI can offer "open original",
+  // same as a feed's own per-item ingest (ingest.ts).
+  const extracted = await extractArticle(url);
+  const contentHtml = extracted.contentHtml ? sanitizeArticleHtml(extracted.contentHtml, url) : "";
+  const title = extracted.title || new URL(url).hostname;
+
+  const [inserted] = await db
+    .insert(article)
+    .values({
+      feedId: readingListFeed.id,
+      userId,
+      guid: url,
+      url,
+      title,
+      author: extracted.author,
+      contentHtml,
+      contentText: extracted.contentText,
+      excerpt: extracted.excerpt,
+      leadImageUrl: extracted.leadImageUrl,
+      wordCount: extracted.wordCount,
+      extractionStatus: extracted.extractionStatus,
+    })
+    .onConflictDoNothing({ target: [article.feedId, article.guid] })
+    .returning();
+
+  // A concurrent request (or a re-save of a URL already saved earlier) may
+  // have won the race / already exist — onConflictDoNothing then returns
+  // nothing, so fetch what's there instead of erroring.
+  const row =
+    inserted ??
+    (
+      await db
+        .select()
+        .from(article)
+        .where(and(eq(article.feedId, readingListFeed.id), eq(article.guid, url)))
+    )[0];
+  if (!row) return c.json({ message: "Failed to save article" }, 500);
+
+  const [state] = await db
+    .select()
+    .from(articleState)
+    .where(and(eq(articleState.userId, userId), eq(articleState.articleId, row.id)));
+
+  const dto: ArticleDetailDTO = {
+    id: row.id,
+    feedId: row.feedId,
+    feedTitle: readingListFeed.title,
+    title: row.title,
+    author: row.author,
+    publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    excerpt: row.excerpt,
+    leadImageUrl: row.leadImageUrl,
+    wordCount: row.wordCount,
+    extractionStatus: row.extractionStatus,
+    url: row.url,
+    contentHtml: row.contentHtml,
+    contentText: row.contentText,
+    discussionUrl: row.discussionUrl,
+    readAt: state?.readAt ? state.readAt.toISOString() : null,
+    starred: state?.starred ?? false,
+    clearedAt: state?.clearedAt ? state.clearedAt.toISOString() : null,
+    playbackPositionSeconds:
+      state?.lastPlaybackPositionSeconds != null ? Number(state.lastPlaybackPositionSeconds) : null,
+  };
+  return c.json(dto, 201);
 });
 
 // Bulk mark-as-read, scoped to the same feedId/tagId filters as the list

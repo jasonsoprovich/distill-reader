@@ -1,4 +1,6 @@
 import type {
+  AddArticleFromUrlInput,
+  ArticleCountsDTO,
   ArticleDetailDTO,
   ArticlesPage,
   ArticleSortDirection,
@@ -73,6 +75,7 @@ export interface BulkArticlesParams {
 
 export const api = {
   listFeeds: () => apiFetch<FeedDTO[]>("/feeds"),
+  getReadingListFeed: () => apiFetch<FeedDTO | null>("/feeds/reading-list"),
   previewFeed: (url: string) =>
     apiFetch<DiscoveredFeed>("/feeds/preview", { method: "POST", body: JSON.stringify({ url }) }),
   createFeed: (input: CreateFeedInput) =>
@@ -99,6 +102,9 @@ export const api = {
     const qs = search.toString();
     return apiFetch<ArticlesPage>(`/articles${qs ? `?${qs}` : ""}`);
   },
+  getArticleCounts: () => apiFetch<ArticleCountsDTO>("/articles/counts"),
+  addArticleFromUrl: (input: AddArticleFromUrlInput) =>
+    apiFetch<ArticleDetailDTO>("/articles/from-url", { method: "POST", body: JSON.stringify(input) }),
   getArticle: (id: string) => apiFetch<ArticleDetailDTO>(`/articles/${id}`),
   markRead: (id: string, read: boolean) =>
     apiFetch<{ readAt: string | null }>(`/articles/${id}/read`, {

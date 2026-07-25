@@ -14,6 +14,8 @@ const EMPTY_FAILED: ExtractedArticle = {
   leadImageUrl: null,
   wordCount: 0,
   extractionStatus: "failed",
+  title: null,
+  author: null,
 };
 
 function countWords(text: string): number {
@@ -60,6 +62,8 @@ export function extractFromHtml(html: string, url: string): ExtractedArticle {
       leadImageUrl,
       wordCount,
       extractionStatus,
+      title: article.title?.trim() || null,
+      author: article.byline?.trim() || null,
     };
   } catch (err) {
     console.warn(`[extract] parse threw for ${url}:`, err instanceof Error ? err.message : err);

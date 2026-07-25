@@ -1,6 +1,6 @@
 import { unlink } from "node:fs/promises";
 import path from "node:path";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { article, articleState, auditLog, db, feed, feedTag, tag, ttsAudio } from "@distill/db";
 import { discoverFeed, ingestFeed, signImageUrl } from "@distill/extract";
 import { createFeedSchema, patchFeedSchema, previewFeedSchema } from "@distill/shared";
@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
 import { costlyRouteRateLimit } from "../middleware/rate-limit.js";
 import { checkCanAddFeed } from "../lib/entitlements.js";
+import { READING_LIST_SOURCE_URL } from "../lib/reading-list.js";
 
 function audioStoragePath(): string {
   return process.env.AUDIO_STORAGE_PATH || "/data/audio";
@@ -104,11 +105,37 @@ function toDTO(row: typeof feed.$inferSelect, tags: TagDTO[], unreadCount: numbe
 feedsRouter.get("/", async (c) => {
   const userId = c.get("userId");
   const [rows, tagsMap, unreadMap] = await Promise.all([
-    db.select().from(feed).where(eq(feed.userId, userId)).orderBy(feed.title),
+    // Excludes the hidden "reading list" feed that POST /articles/from-url
+    // saves single articles under (see reading-list.ts) — it's an
+    // implementation detail, not a feed the user added, so it never shows
+    // up in the Feeds section here even though its articles still appear
+    // in the article views.
+    db
+      .select()
+      .from(feed)
+      .where(and(eq(feed.userId, userId), ne(feed.sourceUrl, READING_LIST_SOURCE_URL)))
+      .orderBy(feed.title),
     tagsByFeedId(userId),
     unreadCountsByFeedId(userId),
   ]);
   return c.json(rows.map((row) => toDTO(row, tagsMap.get(row.id) ?? [], unreadMap.get(row.id) ?? 0)));
+});
+
+// The one feed GET / deliberately hides (see above) — surfaced here on its
+// own so the sidebar's "Saved articles" section can link straight to it
+// without it polluting the regular Feeds list. Null until the user's first
+// POST /articles/from-url actually creates it. Registered before GET /:id
+// below so "reading-list" doesn't get swallowed as an :id param.
+feedsRouter.get("/reading-list", async (c) => {
+  const userId = c.get("userId");
+  const [row] = await db
+    .select()
+    .from(feed)
+    .where(and(eq(feed.userId, userId), eq(feed.sourceUrl, READING_LIST_SOURCE_URL)));
+  if (!row) return c.json(null);
+
+  const unreadMap = await unreadCountsByFeedId(userId);
+  return c.json(toDTO(row, [], unreadMap.get(row.id) ?? 0));
 });
 
 // Discovers a feed without persisting anything, so the add-feed dialog can

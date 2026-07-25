@@ -119,6 +119,12 @@ export interface ExtractedArticle {
   leadImageUrl: string | null;
   wordCount: number;
   extractionStatus: ExtractionStatus;
+  // Readability parses these too, but feed-sourced ingestion (ingest.ts)
+  // already has an adapter-provided title/author and ignores both — only
+  // used where there's no feed item to source them from (single-URL saves,
+  // articles.ts POST /from-url).
+  title: string | null;
+  author: string | null;
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -178,6 +184,20 @@ export interface ArticleDetailDTO extends ArticleListItemDTO {
 export interface ArticlesPage {
   items: ArticleListItemDTO[];
   nextCursor: string | null;
+}
+
+// GET /articles/counts — unread-article counts scoped to each smart view's
+// own filter, so FeedSidebar's nav badges (All/Unread/Starred/Removed)
+// mirror what per-feed unreadCount above already does for each feed. `all`
+// and `unread` are always equal (the Unread view's filter is a strict
+// subset of the default "All" filter, differing only in exactly the
+// isNull(readAt) condition this counts), kept as separate fields anyway so
+// the client doesn't have to know that.
+export interface ArticleCountsDTO {
+  all: number;
+  unread: number;
+  starred: number;
+  cleared: number;
 }
 
 // Response shape of POST /feeds/:id/poll — mirrors packages/extract's
