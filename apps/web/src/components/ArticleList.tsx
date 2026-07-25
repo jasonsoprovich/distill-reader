@@ -4,14 +4,22 @@ import {
   ArrowLeftIcon,
   ArrowUpNarrowWideIcon,
   CheckCheckIcon,
+  CheckCircle2Icon,
   CheckIcon,
   StarIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react";
 import type { ArticleSortDirection } from "@distill/shared";
 import { Button } from "@/components/ui/button";
-import { useArticles, useBulkArticles, useClearArticle, useMarkRead, useReadAll, useStarArticle } from "@/lib/hooks";
+import {
+  useArticle,
+  useArticles,
+  useBulkArticles,
+  useClearArticle,
+  useMarkRead,
+  useReadAll,
+  useStarArticle,
+} from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +64,23 @@ export default function ArticleList({
   const readAll = useReadAll();
   const bulkArticles = useBulkArticles();
   const articles = data?.pages.flatMap((page) => page.items) ?? [];
+
+  // Selecting an article marks it read (ArticleReader's auto-read timer),
+  // which immediately drops it out of a `view=unread` refetch — jarring if
+  // the user is still reading it. Pin it back in using the shared article-
+  // detail cache (articleQueryKey) that ArticleReader itself keeps live via
+  // useArticle — reusing it here (rather than a local snapshot) means a
+  // "mark done" fired from either this list's own button or the reader
+  // pane's toolbar unpins it the same way, since both patch that one cache
+  // entry. Irrelevant outside the Unread view — no other view's membership
+  // changes just from reading.
+  const isUnreadView = selection.kind === "view" && selection.view === "unread";
+  const { data: focusedArticle } = useArticle(isUnreadView ? selectedArticleId : null);
+  const focusedArticleListed = articles.some((a) => a.id === selectedArticleId);
+  const showPinnedFocusedArticle =
+    isUnreadView && Boolean(focusedArticle) && !focusedArticle?.clearedAt && !focusedArticleListed;
+  const displayedArticles =
+    showPinnedFocusedArticle && focusedArticle ? [focusedArticle, ...articles] : articles;
 
   // Marking-all-read is meaningless in the Removed view (those articles are
   // already out of the reading flow).
@@ -214,7 +239,7 @@ export default function ArticleList({
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  title="Remove"
+                  title="Mark done"
                   disabled={isBulkPending}
                   onClick={() =>
                     selectAllScope
@@ -222,7 +247,7 @@ export default function ArticleList({
                       : runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))
                   }
                 >
-                  <Trash2Icon className="size-3.5 text-[var(--surface-muted)]" />
+                  <CheckCircle2Icon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
               </div>
             </>
@@ -302,13 +327,13 @@ export default function ArticleList({
             </button>
           </div>
         )}
-        {!isLoading && !isError && articles.length === 0 && (
+        {!isLoading && !isError && displayedArticles.length === 0 && (
           <p className="p-4 text-sm text-[var(--surface-muted)]">
             No articles yet. New items appear here once a feed is polled.
           </p>
         )}
 
-        {articles.map((article) => {
+        {displayedArticles.map((article) => {
           const isRead = Boolean(article.readAt);
           const isCleared = Boolean(article.clearedAt);
           const isChecked = selectedIds.has(article.id);
@@ -400,11 +425,13 @@ export default function ArticleList({
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  title={isCleared ? "Restore" : "Remove from feed"}
+                  title={isCleared ? "Restore" : "Mark done"}
                   onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
                 >
-                  <Trash2Icon
-                    className={cn("size-3.5", isCleared ? "text-destructive" : "text-[var(--surface-muted)]")}
+                  <CheckCircle2Icon
+                    className={cn("size-3.5", isCleared ? "text-emerald-600" : "text-[var(--surface-muted)]")}
+                    fill={isCleared ? "currentColor" : "none"}
+                    stroke={isCleared ? "var(--surface-bg)" : "currentColor"}
                   />
                 </Button>
               </div>

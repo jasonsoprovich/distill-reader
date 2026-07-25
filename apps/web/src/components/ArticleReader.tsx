@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftIcon,
   BookOpenIcon,
+  CheckCircle2Icon,
   ExternalLinkIcon,
   Loader2Icon,
   MailIcon,
   MailOpenIcon,
   SparklesIcon,
   StarIcon,
-  Trash2Icon,
   ZapIcon,
 } from "lucide-react";
 import type { HighlightWord, SummaryDTO } from "@distill/shared";
@@ -299,12 +299,14 @@ export default function ArticleReader({ articleId, onBack, className }: ArticleR
             variant="ghost"
             size="icon"
             className="size-8"
-            title={isCleared ? "Restore" : "Remove from feed"}
+            title={isCleared ? "Restore" : "Mark done"}
             onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
           >
-            <Trash2Icon
-              className={cn("size-4", isCleared && "text-destructive")}
+            <CheckCircle2Icon
+              className={cn("size-4", isCleared && "text-emerald-600")}
               style={{ color: isCleared ? undefined : theme.muted }}
+              fill={isCleared ? "currentColor" : "none"}
+              stroke={isCleared ? theme.background : "currentColor"}
             />
           </Button>
           <Button variant="ghost" size="icon" className="size-8" title="Open original" asChild>

@@ -134,6 +134,11 @@ export function readerSurfaceVars(name: ReaderThemeName): CSSProperties {
     "--surface-border": dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)",
     "--surface-hover": dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
     "--surface-active": dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.07)",
+    // Reuses each theme's own RSVP pivot color — already tuned per theme to
+    // read as an obvious "accent" against that theme's background — so
+    // theme-aware chrome (the audio scrubber/volume sliders) doesn't need a
+    // second, separately-maintained accent palette.
+    "--surface-accent": RSVP_THEME_PRESETS[name].pivotColor,
   } as CSSProperties;
 }
 

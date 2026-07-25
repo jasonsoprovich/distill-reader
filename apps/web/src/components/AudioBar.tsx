@@ -49,6 +49,7 @@ export default function AudioBar({ playback }: AudioBarProps) {
       <input
         type="range"
         className="h-1 min-w-0 flex-1 cursor-pointer"
+        style={{ accentColor: "var(--surface-accent)" }}
         min={0}
         max={duration ?? 0}
         step={0.1}
@@ -64,6 +65,7 @@ export default function AudioBar({ playback }: AudioBarProps) {
         <input
           type="range"
           className="h-1 w-16 cursor-pointer"
+          style={{ accentColor: "var(--surface-accent)" }}
           min={0}
           max={1}
           step={0.05}
