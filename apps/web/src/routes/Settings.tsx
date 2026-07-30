@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, CopyIcon, SearchIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { ApiError } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import {
   useCreateCredential,
   useCreateRelayToken,
@@ -348,6 +350,137 @@ function AddRelayTokenForm({ onCreated }: { onCreated: (token: string) => void }
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
+  );
+}
+
+const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+
+// Mirrors apps/api/src/lib/entitlements.ts's ACTIVE_STATUSES — the two
+// statuses that count as "paid" for entitlement checks server-side.
+function isActiveStatus(status: string): boolean {
+  return ACTIVE_SUBSCRIPTION_STATUSES.has(status);
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  trialing: "Trial",
+  past_due: "Past due",
+  canceled: "Canceled",
+  incomplete: "Incomplete",
+  incomplete_expired: "Expired",
+  unpaid: "Unpaid",
+};
+
+// Wraps authClient.subscription.list() (@better-auth/stripe's client plugin,
+// wired in lib/auth-client.ts) in React Query rather than a bare useEffect,
+// matching every other data fetch on this page. Returns [] rather than
+// throwing when the server-side plugin isn't registered (STRIPE_SECRET_KEY /
+// STRIPE_WEBHOOK_SECRET unset, per auth.ts's buildPlugins()) — that 404 means
+// "billing isn't configured on this deployment", not "reload and retry".
+function useSubscriptions() {
+  return useQuery({
+    queryKey: ["billing", "subscriptions"],
+    queryFn: async () => {
+      const { data, error } = await authClient.subscription.list({ query: {} });
+      if (error) return [];
+      return data ?? [];
+    },
+  });
+}
+
+function BillingSection() {
+  const { data: subscriptions = [], isLoading, refetch } = useSubscriptions();
+  const [pending, setPending] = useState<"upgrade" | "portal" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const current = subscriptions.find((s) => isActiveStatus(s.status)) ?? subscriptions[0];
+  const isPro = current ? isActiveStatus(current.status) : false;
+
+  async function handleUpgrade() {
+    setError(null);
+    setPending("upgrade");
+    try {
+      const { error: upgradeError } = await authClient.subscription.upgrade({
+        plan: "pro",
+        successUrl: window.location.href,
+        cancelUrl: window.location.href,
+      });
+      if (upgradeError) setError(upgradeError.message ?? "Could not start checkout.");
+      // On success the call redirects to Stripe Checkout, so this line
+      // rarely runs — but reset pending in case the redirect is blocked.
+      setPending(null);
+    } catch {
+      setError("Could not start checkout.");
+      setPending(null);
+    }
+  }
+
+  async function handleManageBilling() {
+    setError(null);
+    setPending("portal");
+    try {
+      const { error: portalError } = await authClient.subscription.billingPortal({
+        returnUrl: window.location.href,
+      });
+      if (portalError) setError(portalError.message ?? "Could not open the billing portal.");
+      setPending(null);
+    } catch {
+      setError("Could not open the billing portal.");
+      setPending(null);
+    }
+  }
+
+  return (
+    <section className="mt-6 flex flex-col gap-3">
+      <h2 className="text-sm font-semibold text-[var(--surface-fg)]">Billing</h2>
+
+      {isLoading && <p className="text-sm text-[var(--surface-muted)]">Loading…</p>}
+
+      {!isLoading && (
+        <div className="flex flex-col gap-3 rounded-md border border-[var(--surface-border)] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={cn(
+                "border-[var(--surface-border)] text-[var(--surface-fg)]",
+                isPro && "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+              )}
+            >
+              {isPro ? "Pro" : "Free"}
+            </Badge>
+            {current && !isPro && (
+              <span className="text-xs text-[var(--surface-muted)]">
+                {STATUS_LABELS[current.status] ?? current.status}
+              </span>
+            )}
+            {current?.cancelAtPeriodEnd && current.periodEnd && (
+              <span className="text-xs text-[var(--surface-muted)]">
+                Cancels {new Date(current.periodEnd).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+
+          {isPro ? (
+            <Button type="button" variant="outline" size="sm" className="self-start" onClick={handleManageBilling} disabled={pending !== null}>
+              {pending === "portal" ? "Opening…" : "Manage billing"}
+            </Button>
+          ) : (
+            <Button type="button" size="sm" className="self-start" onClick={handleUpgrade} disabled={pending !== null}>
+              {pending === "upgrade" ? "Redirecting…" : "Upgrade to Pro"}
+            </Button>
+          )}
+
+          {error && (
+            <p className="text-sm text-destructive">
+              {error}{" "}
+              <button type="button" className="underline underline-offset-2" onClick={() => refetch()}>
+                Retry
+              </button>
+            </p>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -842,7 +975,9 @@ export default function Settings() {
           </div>
         )}
 
-        <section className="mt-6 flex flex-col gap-3">
+        <BillingSection />
+
+        <section className="mt-8 flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-[var(--surface-fg)]">Reader theme</h2>
           <ReaderThemePicker />
         </section>
