@@ -36,21 +36,28 @@ export const TTS_FORMATS: Record<TtsProviderKind, string> = {
 };
 
 // Bounds each provider HTTP call. Synthesis is slower than a summary
-// completion, so this is longer than SUMMARY_REQUEST_TIMEOUT_MS.
-export const TTS_REQUEST_TIMEOUT_MS = 60_000;
+// completion, so these are longer than SUMMARY_REQUEST_TIMEOUT_MS.
+//
+// Piper/Kokoro get double the cloud providers' budget: they run CPU-bound
+// synthesis on a self-hosted sidecar rather than a provisioned cloud GPU
+// fleet, so throughput varies a lot more with the operator's own hardware.
+// Measured ~30-35 chars/sec against this repo's own Kokoro-FastAPI CPU
+// container — comfortable under even the shared 60s budget at the chunk
+// sizes below — but slower/cold-starting hardware (or a model still loading
+// into memory on a request that races it) can fall well under that, and a
+// bare 60s budget leaves little room before a legitimately-in-progress
+// synthesis gets aborted and reported as a timeout. 120s leaves headroom
+// for hardware running at roughly a third of that measured rate.
+export const TTS_REQUEST_TIMEOUT_MS: Record<TtsProviderKind, number> = {
+  elevenlabs: 60_000,
+  openai: 60_000,
+  piper: 120_000,
+  kokoro: 120_000,
+};
 
 // Long articles are split before synthesis (PLAN §7.2) so the first chunk
 // can play while the rest generate, and so no single request risks a
 // provider's own request-size ceiling.
-//
-// Piper and Kokoro run CPU-bound synthesis on a self-hosted sidecar rather
-// than a provisioned cloud GPU fleet, so they're far slower per character —
-// measured ~30 chars/sec against this repo's own Kokoro-FastAPI CPU
-// container, meaning a single 3,500-char request (under the cloud-provider
-// threshold below, so previously sent unchunked) took ~115s against a 60s
-// TTS_REQUEST_TIMEOUT_MS and reliably timed out. Their thresholds are kept
-// much smaller so every chunk finishes with comfortable margin under the
-// shared timeout even on slower hardware.
 export const TTS_MAX_SINGLE_PASS_CHARS: Record<TtsProviderKind, number> = {
   elevenlabs: 4_000,
   openai: 4_000,

@@ -48,7 +48,7 @@ export function createKokoroClient(baseUrl: string): TtsProviderClient {
         response = await safeFetch(`${root}/v1/audio/speech`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+          timeoutMs: TTS_REQUEST_TIMEOUT_MS.kokoro,
           allowedHosts: trustedKokoroHosts(root),
           body: JSON.stringify({ model: MODEL, input: text, voice, response_format: "mp3", speed }),
         });
@@ -82,7 +82,7 @@ export function createKokoroClient(baseUrl: string): TtsProviderClient {
       let response: Response;
       try {
         response = await safeFetch(`${root}/v1/audio/voices`, {
-          timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+          timeoutMs: TTS_REQUEST_TIMEOUT_MS.kokoro,
           allowedHosts: trustedKokoroHosts(root),
         });
       } catch (err) {

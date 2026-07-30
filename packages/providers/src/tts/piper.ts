@@ -61,7 +61,7 @@ export function createPiperClient(baseUrl: string): TtsProviderClient {
         response = await safeFetch(root, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+          timeoutMs: TTS_REQUEST_TIMEOUT_MS.piper,
           allowedHosts: trustedPiperHosts(root),
           body: JSON.stringify({ text, voice, length_scale: lengthScale }),
         });
@@ -84,7 +84,7 @@ export function createPiperClient(baseUrl: string): TtsProviderClient {
       let response: Response;
       try {
         response = await safeFetch(`${root}/voices`, {
-          timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+          timeoutMs: TTS_REQUEST_TIMEOUT_MS.piper,
           allowedHosts: trustedPiperHosts(root),
         });
       } catch (err) {

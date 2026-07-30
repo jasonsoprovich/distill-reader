@@ -22,7 +22,7 @@ export function createOpenAiTtsClient(apiKey: string, baseUrl?: string | null): 
         response = await safeFetch(`${root}/audio/speech`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+          timeoutMs: TTS_REQUEST_TIMEOUT_MS.openai,
           body: JSON.stringify({
             model,
             input: text,

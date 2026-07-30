@@ -71,7 +71,7 @@ export function createElevenLabsClient(apiKey: string, baseUrl?: string | null):
           {
             method: "POST",
             headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
-            timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+            timeoutMs: TTS_REQUEST_TIMEOUT_MS.elevenlabs,
             body: JSON.stringify({
               text,
               model_id: model || DEFAULT_MODEL,
@@ -125,7 +125,7 @@ export function createElevenLabsClient(apiKey: string, baseUrl?: string | null):
         try {
           response = await safeFetch(`${root}/v2/voices?${params}`, {
             headers: { "xi-api-key": apiKey },
-            timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+            timeoutMs: TTS_REQUEST_TIMEOUT_MS.elevenlabs,
           });
         } catch (err) {
           if (isTimeoutError(err)) throw new TtsProviderError("elevenlabs", "timeout", "ElevenLabs request timed out");
@@ -165,7 +165,7 @@ export function createElevenLabsClient(apiKey: string, baseUrl?: string | null):
         try {
           response = await safeFetch(`${root}/v1/shared-voices?${params}`, {
             headers: { "xi-api-key": apiKey },
-            timeoutMs: TTS_REQUEST_TIMEOUT_MS,
+            timeoutMs: TTS_REQUEST_TIMEOUT_MS.elevenlabs,
           });
         } catch {
           // The shared library is a nice-to-have on top of the account's own
