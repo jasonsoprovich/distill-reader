@@ -36,6 +36,7 @@ import type {
   ArticlesPage,
   ArticleView,
   SummaryDTO,
+  SummaryPrefs,
   SummaryProviderKind,
   TtsAudioDTO,
   TtsProviderKind,
@@ -570,15 +571,20 @@ articlesRouter.post("/:id/summary", costlyRouteRateLimit, async (c) => {
   if (denial) return c.json(denial, 402);
 
   let provider: SummaryProviderKind | undefined = body.data.provider;
+  const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
   if (!provider) {
-    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
     provider = settings?.defaultSummaryProvider ?? undefined;
   }
   if (!provider) {
     return c.json({ message: "No provider specified and no default summary provider configured" }, 422);
   }
 
-  const model = resolveModel(provider, body.data.model);
+  // Falls back to the user's persisted per-provider model pick (Settings)
+  // before the provider's own hardcoded default — matters most for
+  // OpenRouter, whose ~400-model catalog makes "always use the default"
+  // impractical.
+  const summaryPrefs = settings?.summaryPrefs as SummaryPrefs | undefined;
+  const model = resolveModel(provider, body.data.model ?? summaryPrefs?.models?.[provider]);
 
   const [cached] = await db
     .select()

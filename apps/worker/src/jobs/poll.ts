@@ -1,6 +1,7 @@
 import { ingestFeed, isFeedDue } from "@distill/extract";
 import { article, auditLog, db, feed, summary, userSettings } from "@distill/db";
 import { generateSummary } from "@distill/providers";
+import type { SummaryPrefs } from "@distill/shared";
 import { eq, inArray } from "drizzle-orm";
 
 // Auto-summarizes articles just inserted for a feed with auto_summarize on
@@ -15,6 +16,10 @@ async function autoSummarizeInserted(f: typeof feed.$inferSelect, insertedArticl
   const provider = settings?.defaultSummaryProvider;
   if (!provider) return;
 
+  // Same persisted per-provider model fallback as the on-demand summary
+  // route (apps/api/src/routes/articles.ts) — matters most for OpenRouter.
+  const model = (settings?.summaryPrefs as SummaryPrefs | undefined)?.models?.[provider];
+
   const rows = await db
     .select({ id: article.id, title: article.title, contentText: article.contentText })
     .from(article)
@@ -26,6 +31,7 @@ async function autoSummarizeInserted(f: typeof feed.$inferSelect, insertedArticl
         db,
         userId: f.userId,
         provider,
+        model,
         articleTitle: row.title,
         articleText: row.contentText,
       });

@@ -33,9 +33,12 @@ ttsRouter.get("/voices", async (c) => {
   if (!provider || !isTtsProviderKind(provider)) {
     return c.json({ message: "Invalid or missing provider" }, 400);
   }
+  // Only meaningful for OpenRouter, whose voices are per-model — every
+  // other provider's client ignores this.
+  const model = c.req.query("model");
 
   try {
-    const voices: TtsVoiceDTO[] = await listTtsVoices(db, userId, provider, relayDispatcher);
+    const voices: TtsVoiceDTO[] = await listTtsVoices(db, userId, provider, relayDispatcher, model);
     return c.json(voices);
   } catch (err) {
     const status =

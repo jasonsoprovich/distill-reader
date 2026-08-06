@@ -27,6 +27,7 @@ function toDTO(row: typeof userSettings.$inferSelect): SettingsDTO {
     readerTheme: row.readerTheme as SettingsDTO["readerTheme"],
     rsvpPrefs: row.rsvpPrefs as SettingsDTO["rsvpPrefs"],
     ttsPrefs: row.ttsPrefs as SettingsDTO["ttsPrefs"],
+    summaryPrefs: row.summaryPrefs as SettingsDTO["summaryPrefs"],
     defaultSummaryProvider: row.defaultSummaryProvider,
     defaultTtsProvider: row.defaultTtsProvider,
   };
@@ -56,11 +57,22 @@ settingsRouter.patch("/", async (c) => {
   // merging it. Left as a plain passthrough, a patch touching only one field
   // (e.g. { ttsPrefs: { source } } after picking Listen) would silently wipe
   // every other previously-saved field in that same column.
-  const { readerTheme, rsvpPrefs, ttsPrefs, ...rest } = body.data;
+  const { readerTheme, rsvpPrefs, ttsPrefs, summaryPrefs, ...rest } = body.data;
   const patch: Record<string, unknown> = { ...rest };
   if (readerTheme) patch.readerTheme = { ...(existing.readerTheme as object), ...readerTheme };
   if (rsvpPrefs) patch.rsvpPrefs = { ...(existing.rsvpPrefs as object), ...rsvpPrefs };
   if (ttsPrefs) patch.ttsPrefs = { ...(existing.ttsPrefs as object), ...ttsPrefs };
+  if (summaryPrefs) {
+    // One level deeper than the other jsonb merges above: `models` is
+    // itself keyed per-provider, so a shallow spread here would let a patch
+    // for one provider's model wipe out every other provider's saved model.
+    const existingSummaryPrefs = existing.summaryPrefs as SettingsDTO["summaryPrefs"];
+    patch.summaryPrefs = {
+      ...existingSummaryPrefs,
+      ...summaryPrefs,
+      models: { ...existingSummaryPrefs?.models, ...summaryPrefs.models },
+    };
+  }
 
   const [row] = Object.keys(patch).length
     ? await db.update(userSettings).set(patch).where(eq(userSettings.userId, userId)).returning()

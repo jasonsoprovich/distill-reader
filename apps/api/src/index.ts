@@ -13,6 +13,7 @@ import { credentialsRouter } from "./routes/credentials.js";
 import { feedsRouter } from "./routes/feeds.js";
 import { imagesRouter } from "./routes/images.js";
 import { meRouter } from "./routes/me.js";
+import { openRouterRouter } from "./routes/openrouter.js";
 import { relayRouter } from "./routes/relay.js";
 import { settingsRouter } from "./routes/settings.js";
 import { tagsRouter } from "./routes/tags.js";
@@ -160,6 +161,7 @@ app.route("/img", imagesRouter);
 app.route("/credentials", credentialsRouter);
 app.route("/settings", settingsRouter);
 app.route("/tts", ttsRouter);
+app.route("/openrouter", openRouterRouter);
 app.route("/me", meRouter);
 app.route("/relay", relayRouter);
 
