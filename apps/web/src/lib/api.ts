@@ -13,6 +13,8 @@ import type {
   DiscoveredFeed,
   FeedDTO,
   FeedPollResultDTO,
+  OpenRouterModelDTO,
+  OpenRouterModelKind,
   PatchFeedInput,
   PatchSettingsInput,
   PatchTagInput,
@@ -158,8 +160,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ positionSeconds }),
     }),
-  listTtsVoices: (provider: TtsProviderKind) =>
-    apiFetch<TtsVoiceDTO[]>(`/tts/voices?provider=${encodeURIComponent(provider)}`),
+  listTtsVoices: (provider: TtsProviderKind, model?: string) =>
+    apiFetch<TtsVoiceDTO[]>(
+      `/tts/voices?provider=${encodeURIComponent(provider)}${model ? `&model=${encodeURIComponent(model)}` : ""}`,
+    ),
+
+  listOpenRouterModels: (kind: OpenRouterModelKind) =>
+    apiFetch<OpenRouterModelDTO[]>(`/openrouter/models?kind=${kind}`),
 
   listCredentials: () => apiFetch<CredentialDTO[]>("/credentials"),
   createCredential: (input: CreateCredentialInput) =>

@@ -14,6 +14,7 @@ import {
 } from "@distill/shared";
 import type {
   CredentialProviderKind,
+  OpenRouterModelDTO,
   ReaderFontName,
   ReaderThemeName,
   RelayTtsProviderKind,
@@ -34,6 +35,7 @@ import {
   useCredentials,
   useDeleteCredential,
   useDeleteRelayToken,
+  useOpenRouterModels,
   useRelayStatus,
   useRelayTokens,
   useSettings,
@@ -55,7 +57,7 @@ import {
 import { toast } from "@/lib/toast";
 import { cn, fuzzyMatch } from "@/lib/utils";
 
-const KEYED_PROVIDERS = new Set<CredentialProviderKind>(["openai", "anthropic", "elevenlabs"]);
+const KEYED_PROVIDERS = new Set<CredentialProviderKind>(["openai", "anthropic", "elevenlabs", "openrouter"]);
 
 // Self-hosted providers use a base URL instead of a key, but they're
 // different services on different default ports — a shared placeholder was
@@ -79,7 +81,21 @@ const PROVIDER_LABELS: Record<CredentialProviderKind, string> = {
   elevenlabs: "ElevenLabs",
   piper: "Piper (local)",
   kokoro: "Kokoro (local)",
+  openrouter: "OpenRouter",
 };
+
+// OpenRouter prices per token; converted to the more familiar $/1M tokens.
+function formatOpenRouterPrice(pricePerToken: string): string {
+  const n = Number(pricePerToken);
+  if (!Number.isFinite(n) || n === 0) return "Free";
+  return `$${(n * 1_000_000).toFixed(2)}/1M tokens`;
+}
+
+function formatContextLength(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M ctx`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1000)}K ctx`;
+  return `${tokens} ctx`;
+}
 
 // Piper has no model concept at all (voice-only), so it's absent here — the
 // picker below only renders a model dropdown for providers with an entry.
@@ -559,6 +575,34 @@ function DefaultProviderPicker() {
   );
 }
 
+// OpenRouter's ~400-model catalog is the only summary provider with a real
+// model choice — the others (openai/anthropic/ollama) use a single
+// hardcoded default (DEFAULT_SUMMARY_MODELS), so this only renders for it.
+function SummaryModelPicker() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const provider = settings?.defaultSummaryProvider ?? null;
+  const { data: models } = useOpenRouterModels("summary", provider === "openrouter");
+
+  if (provider !== "openrouter") return null;
+
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+      Model
+      <SearchCombobox
+        items={models ?? []}
+        value={settings?.summaryPrefs.models?.openrouter}
+        onChange={(next) => updateSettings.mutate({ summaryPrefs: { models: { openrouter: next } } })}
+        getId={(m) => m.id}
+        getLabel={(m) => m.name}
+        getSubtitle={(m) => `${formatOpenRouterPrice(m.pricing.prompt)} · ${formatContextLength(m.contextLength)}`}
+        placeholder="Default model"
+        searchPlaceholder="Search models…"
+      />
+    </label>
+  );
+}
+
 function DefaultTtsProviderPicker() {
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
@@ -600,33 +644,49 @@ const VOICE_CATEGORY_GROUP_LABELS: Record<string, string> = {
 
 // A plain <select> stopped being usable once the voice list grew from a
 // couple dozen entries (the account's own voices) to potentially hundreds
-// (once the shared voice library is merged in — see elevenlabs.ts) — this
-// gives it a search box instead of a scroll bar.
-function VoiceCombobox({
-  voices,
+// (ElevenLabs' shared voice library, OpenRouter's ~400-model catalog) — this
+// gives it a search box instead of a scroll bar. Generic over item type so
+// it backs both the voice picker (TtsVoiceDTO) and the OpenRouter model
+// pickers (OpenRouterModelDTO) without duplicating the popover/search/group
+// chrome.
+function SearchCombobox<T>({
+  items,
   value,
   onChange,
+  getId,
+  getLabel,
+  getGroup,
+  getSubtitle,
+  placeholder,
+  searchPlaceholder,
 }: {
-  voices: TtsVoiceDTO[];
+  items: T[];
   value: string | undefined;
   onChange: (next: string | undefined) => void;
+  getId: (item: T) => string;
+  getLabel: (item: T) => string;
+  getGroup?: (item: T) => string | undefined;
+  getSubtitle?: (item: T) => string | undefined;
+  placeholder: string;
+  searchPlaceholder: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  const selected = voices.find((v) => v.id === value);
-  const hasGroups = voices.some((v) => v.category);
+  const selected = items.find((item) => getId(item) === value);
+  const hasGroups = getGroup != null && items.some((item) => getGroup(item));
 
   const groups = useMemo(() => {
-    const filtered = voices.filter((v) => fuzzyMatch(query, v.name));
-    if (!hasGroups) return [{ label: null as string | null, voices: filtered }];
-    const byLabel = new Map<string, TtsVoiceDTO[]>();
-    for (const v of filtered) {
-      const label = VOICE_CATEGORY_GROUP_LABELS[v.category ?? ""] ?? "Other voices";
-      (byLabel.get(label) ?? byLabel.set(label, []).get(label)!).push(v);
+    const filtered = items.filter((item) => fuzzyMatch(query, getLabel(item)));
+    if (!hasGroups) return [{ label: null as string | null, items: filtered }];
+    const byLabel = new Map<string, T[]>();
+    for (const item of filtered) {
+      const label = getGroup!(item) ?? "Other";
+      (byLabel.get(label) ?? byLabel.set(label, []).get(label)!).push(item);
     }
-    return [...byLabel.entries()].map(([label, list]) => ({ label, voices: list }));
-  }, [voices, query, hasGroups]);
+    return [...byLabel.entries()].map(([label, list]) => ({ label, items: list }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, query, hasGroups]);
 
   return (
     <Popover
@@ -638,7 +698,7 @@ function VoiceCombobox({
     >
       <PopoverTrigger asChild>
         <button type="button" className={cn(selectClass(), "flex items-center justify-between gap-2")}>
-          <span className="truncate">{selected?.name ?? "Default voice"}</span>
+          <span className="truncate">{selected ? getLabel(selected) : placeholder}</span>
           <ChevronsUpDownIcon className="size-3.5 shrink-0 text-[var(--surface-muted)]" />
         </button>
       </PopoverTrigger>
@@ -647,7 +707,7 @@ function VoiceCombobox({
           <SearchIcon className="size-3.5 shrink-0 text-[var(--surface-muted)]" />
           <input
             autoFocus
-            placeholder="Search voices…"
+            placeholder={searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-transparent text-sm outline-none placeholder:text-[var(--surface-muted)]"
@@ -663,35 +723,65 @@ function VoiceCombobox({
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"
           >
             <CheckIcon className={cn("size-3.5 shrink-0", value ? "invisible" : "")} />
-            Default voice
+            {placeholder}
           </button>
           {groups.map((group) => (
             <div key={group.label ?? "all"}>
               {group.label && (
                 <div className="px-2 pt-2 pb-1 text-xs font-medium text-[var(--surface-muted)]">{group.label}</div>
               )}
-              {group.voices.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(v.id);
-                    setOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"
-                >
-                  <CheckIcon className={cn("size-3.5 shrink-0", value === v.id ? "" : "invisible")} />
-                  <span className="truncate">{v.name}</span>
-                </button>
-              ))}
+              {group.items.map((item) => {
+                const id = getId(item);
+                const subtitle = getSubtitle?.(item);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      onChange(id);
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"
+                  >
+                    <CheckIcon className={cn("size-3.5 shrink-0", value === id ? "" : "invisible")} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{getLabel(item)}</span>
+                      {subtitle && <span className="truncate text-[10px] text-[var(--surface-muted)]">{subtitle}</span>}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           ))}
-          {groups.every((g) => g.voices.length === 0) && (
-            <p className="px-2 py-3 text-center text-sm text-[var(--surface-muted)]">No voices match "{query}".</p>
+          {groups.every((g) => g.items.length === 0) && (
+            <p className="px-2 py-3 text-center text-sm text-[var(--surface-muted)]">No matches for "{query}".</p>
           )}
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function VoiceCombobox({
+  voices,
+  value,
+  onChange,
+}: {
+  voices: TtsVoiceDTO[];
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
+}) {
+  return (
+    <SearchCombobox
+      items={voices}
+      value={value}
+      onChange={onChange}
+      getId={(v) => v.id}
+      getLabel={(v) => v.name}
+      getGroup={(v) => (v.category ? (VOICE_CATEGORY_GROUP_LABELS[v.category] ?? "Other voices") : undefined)}
+      placeholder="Default voice"
+      searchPlaceholder="Search voices…"
+    />
   );
 }
 
@@ -709,6 +799,10 @@ function TtsVoicePicker() {
   // Same race this guards against as ReaderThemePicker's dirtyRef — see
   // that component for the full writeup.
   const dirtyRef = useRef(false);
+  // Tracks the provider the current voice/model picks belong to, so a
+  // provider switch (below) can tell "just loaded" apart from "user changed
+  // it" — see the reset effect.
+  const prevProviderRef = useRef<TtsProviderKind | null>(null);
 
   const [voice, setVoice] = useState<string | undefined>(undefined);
   const [model, setModel] = useState<string | undefined>(undefined);
@@ -716,17 +810,33 @@ function TtsVoicePicker() {
   const [highlightFollowEnabled, setHighlightFollowEnabled] = useState(false);
 
   const provider = settings?.defaultTtsProvider ?? null;
-  const { data: voices, isError: voicesErrored, error: voicesError } = useTtsVoices(provider);
+  const isOpenRouter = provider === "openrouter";
+  const { data: voices, isError: voicesErrored, error: voicesError } = useTtsVoices(provider, isOpenRouter ? model : undefined);
+  const { data: openRouterModels } = useOpenRouterModels("tts", isOpenRouter);
 
   useEffect(() => {
     if (loadedRef.current || !settings) return;
     loadedRef.current = true;
+    prevProviderRef.current = provider;
     const prefs = settings.ttsPrefs;
     if (prefs.voice) setVoice(prefs.voice);
     if (prefs.model) setModel(prefs.model);
     if (prefs.speed != null) setSpeed(prefs.speed);
     if (prefs.highlightFollowEnabled != null) setHighlightFollowEnabled(prefs.highlightFollowEnabled);
-  }, [settings]);
+  }, [settings, provider]);
+
+  // Each provider's voice/model ids are its own namespace — an ElevenLabs
+  // voice id means nothing to OpenRouter, an OpenAI model id isn't a valid
+  // OpenRouter one — so switching the default TTS provider must not carry
+  // the old picks across; that would silently send garbage to the new
+  // provider's API on the next Listen.
+  useEffect(() => {
+    if (!loadedRef.current || prevProviderRef.current === provider) return;
+    prevProviderRef.current = provider;
+    dirtyRef.current = true;
+    setVoice(undefined);
+    setModel(undefined);
+  }, [provider]);
 
   useEffect(() => {
     if (!dirtyRef.current) return;
@@ -745,6 +855,11 @@ function TtsVoicePicker() {
   function pickModel(next: string | undefined) {
     dirtyRef.current = true;
     setModel(next);
+    // A model change invalidates whatever voice was picked for the
+    // previous model — OpenRouter voices are per-model (see
+    // tts/openrouter.ts), so carrying it across could send a voice id the
+    // new model doesn't recognize.
+    if (isOpenRouter) setVoice(undefined);
   }
 
   function pickSpeed(next: number) {
@@ -763,7 +878,8 @@ function TtsVoicePicker() {
     return <p className="text-xs text-[var(--surface-muted)]">Pick a default TTS provider above to configure it.</p>;
   }
 
-  const models = TTS_MODELS_BY_PROVIDER[provider];
+  const staticModels = TTS_MODELS_BY_PROVIDER[provider];
+  const voicesLoaded = voices != null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -773,6 +889,16 @@ function TtsVoicePicker() {
           <VoiceCombobox voices={voices} value={voice} onChange={pickVoice} />
         </div>
       )}
+      {isOpenRouter && voicesLoaded && voices.length === 0 && (
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+          Voice
+          <Input
+            placeholder="Voice id (see the model's page on openrouter.ai/models)"
+            value={voice ?? ""}
+            onChange={(e) => pickVoice(e.target.value || undefined)}
+          />
+        </label>
+      )}
       {voicesErrored && (
         <p className="text-xs text-destructive">
           Couldn't load voices for {PROVIDER_LABELS[provider]}
@@ -780,18 +906,34 @@ function TtsVoicePicker() {
         </p>
       )}
 
-      {models && (
+      {isOpenRouter ? (
         <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Model
-          <select className={selectClass()} value={model ?? ""} onChange={(e) => pickModel(e.target.value || undefined)}>
-            <option value="">Default model</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          <SearchCombobox
+            items={openRouterModels ?? []}
+            value={model}
+            onChange={pickModel}
+            getId={(m: OpenRouterModelDTO) => m.id}
+            getLabel={(m: OpenRouterModelDTO) => m.name}
+            getSubtitle={(m: OpenRouterModelDTO) => `${formatOpenRouterPrice(m.pricing.prompt)} · ${formatContextLength(m.contextLength)}`}
+            placeholder="Default model"
+            searchPlaceholder="Search models…"
+          />
         </label>
+      ) : (
+        staticModels && (
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+            Model
+            <select className={selectClass()} value={model ?? ""} onChange={(e) => pickModel(e.target.value || undefined)}>
+              <option value="">Default model</option>
+              {staticModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )
       )}
 
       <label className="flex items-center gap-3 text-xs font-medium text-[var(--surface-muted)]">
@@ -994,6 +1136,7 @@ export default function Settings() {
         <section className="mt-8 flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-[var(--surface-fg)]">AI summaries</h2>
           <DefaultProviderPicker />
+          <SummaryModelPicker />
         </section>
 
         <section className="mt-8 flex flex-col gap-3">

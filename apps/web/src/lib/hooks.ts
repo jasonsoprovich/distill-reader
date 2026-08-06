@@ -18,6 +18,7 @@ import type {
   CreateFeedInput,
   CreateRelayTokenInput,
   FeedDTO,
+  OpenRouterModelKind,
   PatchFeedInput,
   PatchSettingsInput,
   PatchTagInput,
@@ -39,7 +40,11 @@ export const articleQueryKey = (id: string) => ["article", id] as const;
 export const summaryQueryKey = (articleId: string) => ["summary", articleId] as const;
 export const ttsAudioQueryKey = (articleId: string, source: TtsSource = "full") =>
   ["tts-audio", articleId, source] as const;
-export const ttsVoicesQueryKey = (provider: TtsProviderKind) => ["tts-voices", provider] as const;
+// model is only ever set for OpenRouter (its voices are per-model) — every
+// other provider's voice list doesn't vary by model, so this still caches
+// correctly for them with model left undefined.
+export const ttsVoicesQueryKey = (provider: TtsProviderKind, model?: string) => ["tts-voices", provider, model] as const;
+export const openRouterModelsQueryKey = (kind: OpenRouterModelKind) => ["openrouter-models", kind] as const;
 export const credentialsQueryKey = ["credentials"] as const;
 export const settingsQueryKey = ["settings"] as const;
 export const relayTokensQueryKey = ["relay-tokens"] as const;
@@ -384,12 +389,21 @@ export function useRequestTts() {
   });
 }
 
-export function useTtsVoices(provider: TtsProviderKind | null) {
+export function useTtsVoices(provider: TtsProviderKind | null, model?: string) {
   return useQuery({
-    queryKey: ttsVoicesQueryKey(provider ?? "elevenlabs"),
-    queryFn: () => api.listTtsVoices(provider as TtsProviderKind),
+    queryKey: ttsVoicesQueryKey(provider ?? "elevenlabs", model),
+    queryFn: () => api.listTtsVoices(provider as TtsProviderKind, model),
     enabled: Boolean(provider),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useOpenRouterModels(kind: OpenRouterModelKind, enabled = true) {
+  return useQuery({
+    queryKey: openRouterModelsQueryKey(kind),
+    queryFn: () => api.listOpenRouterModels(kind),
+    staleTime: 5 * 60 * 1000,
+    enabled,
   });
 }
 
@@ -482,6 +496,11 @@ export function useUpdateSettings() {
           readerTheme: { ...previous.readerTheme, ...patch.readerTheme },
           rsvpPrefs: { ...previous.rsvpPrefs, ...patch.rsvpPrefs },
           ttsPrefs: { ...previous.ttsPrefs, ...patch.ttsPrefs },
+          summaryPrefs: {
+            ...previous.summaryPrefs,
+            ...patch.summaryPrefs,
+            models: { ...previous.summaryPrefs.models, ...patch.summaryPrefs?.models },
+          },
         });
       }
       return { previous };
