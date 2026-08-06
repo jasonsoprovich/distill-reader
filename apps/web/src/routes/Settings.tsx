@@ -582,24 +582,35 @@ function SummaryModelPicker() {
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const provider = settings?.defaultSummaryProvider ?? null;
-  const { data: models } = useOpenRouterModels("summary", provider === "openrouter");
+  const {
+    data: models,
+    isError: modelsErrored,
+    error: modelsError,
+  } = useOpenRouterModels("summary", provider === "openrouter");
 
   if (provider !== "openrouter") return null;
 
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
-      Model
-      <SearchCombobox
-        items={models ?? []}
-        value={settings?.summaryPrefs.models?.openrouter}
-        onChange={(next) => updateSettings.mutate({ summaryPrefs: { models: { openrouter: next } } })}
-        getId={(m) => m.id}
-        getLabel={(m) => m.name}
-        getSubtitle={(m) => `${formatOpenRouterPrice(m.pricing.prompt)} · ${formatContextLength(m.contextLength)}`}
-        placeholder="Default model"
-        searchPlaceholder="Search models…"
-      />
-    </label>
+    <div className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+        Model
+        <SearchCombobox
+          items={models ?? []}
+          value={settings?.summaryPrefs.models?.openrouter}
+          onChange={(next) => updateSettings.mutate({ summaryPrefs: { models: { openrouter: next } } })}
+          getId={(m) => m.id}
+          getLabel={(m) => m.name}
+          getSubtitle={(m) => `${formatOpenRouterPrice(m.pricing.prompt)} · ${formatContextLength(m.contextLength)}`}
+          placeholder="Default model"
+          searchPlaceholder="Search models…"
+        />
+      </label>
+      {modelsErrored && (
+        <p className="text-xs text-destructive">
+          Couldn't load OpenRouter models{modelsError instanceof ApiError ? `: ${modelsError.message}` : "."}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -812,7 +823,11 @@ function TtsVoicePicker() {
   const provider = settings?.defaultTtsProvider ?? null;
   const isOpenRouter = provider === "openrouter";
   const { data: voices, isError: voicesErrored, error: voicesError } = useTtsVoices(provider, isOpenRouter ? model : undefined);
-  const { data: openRouterModels } = useOpenRouterModels("tts", isOpenRouter);
+  const {
+    data: openRouterModels,
+    isError: openRouterModelsErrored,
+    error: openRouterModelsError,
+  } = useOpenRouterModels("tts", isOpenRouter);
 
   useEffect(() => {
     if (loadedRef.current || !settings) return;
@@ -883,29 +898,10 @@ function TtsVoicePicker() {
 
   return (
     <div className="flex flex-col gap-3">
-      {voices && voices.length > 0 && (
-        <div className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
-          Voice
-          <VoiceCombobox voices={voices} value={voice} onChange={pickVoice} />
-        </div>
-      )}
-      {isOpenRouter && voicesLoaded && voices.length === 0 && (
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
-          Voice
-          <Input
-            placeholder="Voice id (see the model's page on openrouter.ai/models)"
-            value={voice ?? ""}
-            onChange={(e) => pickVoice(e.target.value || undefined)}
-          />
-        </label>
-      )}
-      {voicesErrored && (
-        <p className="text-xs text-destructive">
-          Couldn't load voices for {PROVIDER_LABELS[provider]}
-          {voicesError instanceof ApiError ? `: ${voicesError.message}` : "."}
-        </p>
-      )}
-
+      {/* Model before voice: for OpenRouter the model determines which
+          voices (if any) are even available, so picking it first makes the
+          dependency visible instead of a voice list that silently changes
+          out from under an already-made choice. */}
       {isOpenRouter ? (
         <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Model
@@ -934,6 +930,35 @@ function TtsVoicePicker() {
             </select>
           </label>
         )
+      )}
+      {isOpenRouter && openRouterModelsErrored && (
+        <p className="text-xs text-destructive">
+          Couldn't load OpenRouter models
+          {openRouterModelsError instanceof ApiError ? `: ${openRouterModelsError.message}` : "."}
+        </p>
+      )}
+
+      {voices && voices.length > 0 && (
+        <div className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+          Voice
+          <VoiceCombobox voices={voices} value={voice} onChange={pickVoice} />
+        </div>
+      )}
+      {isOpenRouter && voicesLoaded && voices.length === 0 && (
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
+          Voice
+          <Input
+            placeholder="Voice id (see the model's page on openrouter.ai/models)"
+            value={voice ?? ""}
+            onChange={(e) => pickVoice(e.target.value || undefined)}
+          />
+        </label>
+      )}
+      {voicesErrored && (
+        <p className="text-xs text-destructive">
+          Couldn't load voices for {PROVIDER_LABELS[provider]}
+          {voicesError instanceof ApiError ? `: ${voicesError.message}` : "."}
+        </p>
       )}
 
       <label className="flex items-center gap-3 text-xs font-medium text-[var(--surface-muted)]">
