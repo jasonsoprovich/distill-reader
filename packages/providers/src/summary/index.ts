@@ -6,6 +6,7 @@ import { MAX_SINGLE_PASS_CHARS, chunkText } from "./chunk.js";
 import { DEFAULT_SUMMARY_MODELS } from "./models.js";
 import { createOllamaClient } from "./ollama.js";
 import { createOpenAiClient } from "./openai.js";
+import { createOpenRouterClient } from "./openrouter.js";
 import { SUMMARY_PROMPT_VERSION, SUMMARY_SYSTEM_PROMPT, buildMapPrompt, buildReduceUserContent, buildUserContent } from "./prompt.js";
 import { SummaryProviderError, type ResolvedCredential, type SummaryClientResult, type SummaryProviderClient } from "./types.js";
 
@@ -27,6 +28,9 @@ function createClient(provider: SummaryProviderKind, credential: ResolvedCredent
     case "ollama":
       if (!credential.baseUrl) throw new SummaryProviderError(provider, "auth", "No Ollama base URL configured");
       return createOllamaClient(credential.baseUrl);
+    case "openrouter":
+      if (!credential.apiKey) throw new SummaryProviderError(provider, "auth", "No OpenRouter API key configured");
+      return createOpenRouterClient(credential.apiKey, credential.baseUrl);
   }
 }
 

@@ -1,9 +1,10 @@
-import type { SummaryProviderKind } from "@distill/shared";
+import { DEFAULT_OPENROUTER_SUMMARY_MODEL, type SummaryProviderKind } from "@distill/shared";
 
 export const DEFAULT_SUMMARY_MODELS: Record<SummaryProviderKind, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-haiku-4-5",
   ollama: "llama3.1",
+  openrouter: DEFAULT_OPENROUTER_SUMMARY_MODEL,
 };
 
 // Bounds each provider HTTP call (PLAN §6.2: "enforce timeouts... never
