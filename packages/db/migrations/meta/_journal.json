@@ -78,6 +78,13 @@
       "when": 1784489630982,
       "tag": "0010_parallel_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786051671896,
+      "tag": "0011_black_epoch",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ export const credentialProvider = pgEnum("credential_provider", [
   "elevenlabs",
   "piper",
   "kokoro",
+  "openrouter",
 ]);
 
 const bytea = customType<{ data: Buffer }>({
@@ -29,6 +30,7 @@ export const userSettings = pgTable("user_settings", {
   readerTheme: jsonb("reader_theme").notNull().default({}),
   rsvpPrefs: jsonb("rsvp_prefs").notNull().default({}),
   ttsPrefs: jsonb("tts_prefs").notNull().default({}),
+  summaryPrefs: jsonb("summary_prefs").notNull().default({}),
   defaultSummaryProvider: summaryProvider("default_summary_provider"),
   defaultTtsProvider: ttsProvider("default_tts_provider"),
 });
