@@ -262,8 +262,8 @@ Write extraction tests that assert non-empty, ad-free `content_text` and a plaus
 
 ## 6. AI Summarization
 
-### 6.1 Providers (all three)
-Pluggable `SummaryProvider` interface: `openai`, `anthropic`, `ollama`. Ollama takes a `base_url` and needs no key (self-hosted, zero token cost, no data leaves the network — good default for the homelab).
+### 6.1 Providers
+Pluggable `SummaryProvider` interface: `openai`, `anthropic`, `ollama`, `openrouter`. Ollama takes a `base_url` and needs no key (self-hosted, zero token cost, no data leaves the network — good default for the homelab). `openrouter` is a single BYOK key fronting OpenRouter's own multi-vendor catalog (~400 chat-completion models as of writing) — its chat-completions endpoint is OpenAI-compatible, so the client is a thin variant of the `openai` one pointed at `https://openrouter.ai/api/v1`. Unlike the other three, its model list is too large and dynamic to hardcode: `GET /openrouter/models?kind=summary` proxies OpenRouter's own `GET /models?output_modalities=text`, cached in-process for an hour (it's public, identical for every user), and backs a searchable model picker in Settings. The user's pick persists per-provider in `user_settings.summary_prefs.models` (keyed by provider, unlike every other per-request field, precisely because only OpenRouter's catalog is large enough to need remembering).
 
 ### 6.2 Behavior
 - **Default: on-demand with caching.** When the user requests a summary, check the `summary` cache key (§4). Hit → return cached. Miss → generate, store, return.
@@ -281,14 +281,15 @@ System prompt should produce a consistent structure: a 2–3 sentence TL;DR, the
 
 ## 7. Text-to-Speech (Audio Narration)
 
-Parallel to the RSVP reader: let the user **listen** to a normalized article. Two providers, mirroring the summarizer split — one cloud (key required), one local (self-hosted, free).
+Parallel to the RSVP reader: let the user **listen** to a normalized article. Started as a cloud/local split; OpenRouter has since added a fourth, BYOK-but-catalog-driven option.
 
-### 7.1 Providers (both)
+### 7.1 Providers
 Pluggable `TtsProvider` interface: `synthesize(text, voice, opts) → { audio, timings? }`.
 
 - **ElevenLabs (`elevenlabs`)** — cloud, high-quality voices, **API key required**, per-character cost → caching matters. Supports streaming and word/character **timestamps** (used for highlight-follow). Store the key encrypted (§10).
 - **Piper (`piper`)** — local self-hosted neural TTS, **no key**, addressed via `base_url` exactly like Ollama. Runs as an optional sidecar container. Zero cost, nothing leaves the network. (The user already runs Piper on Apple Silicon for another project — known-good fit; default local option.)
 - **Kokoro (`kokoro`)** — same shape as Piper (local, self-hosted, no key), an OpenAI-compatible `/v1/audio/speech` API in front of the open-weight Kokoro-82M model. Optional sidecar container, own Compose profile.
+- **OpenRouter (`openrouter`)** — cloud, BYOK, same credential as the summary provider above (one key unlocks both). Its `/audio/speech` endpoint is OpenAI-compatible too, but its own default `response_format` is `pcm` (raw samples) — the client always requests `mp3` explicitly, since the rest of the TTS pipeline (chunk concatenation, the player) assumes a decodable container. No dedicated voices endpoint: each model in the catalog reports its own `supported_voices` (verified live — e.g. `x-ai/grok-voice-tts-1.0` → `eve/ara/rex/sal/leo`, `hexgrad/kokoro-82m` → `af_*` names), some report none at all, so the picker falls back to a free-text voice field for those. `GET /openrouter/models?kind=tts` (same cached catalog proxy as the summary side) backs the model picker.
 
 Both Piper and Kokoro have a second, cloud-hosted addressing mode: `api_credential.via_relay` marks a credential as **relay-backed** instead of `base_url`-backed. This exists because `base_url` only works when the api/worker process can reach the sidecar directly (same box or same Docker network) — a cloud-hosted deployment (Coolify) can't dial into a user's home machine behind NAT. `apps/relay-agent` runs on that home machine instead, connects *outward* to the cloud API over WebSocket (`GET /relay/agent`, authenticated by a `relay_agent_token` pairing token, not a session cookie), and holds the connection open; the API dispatches `synthesize`/`listVoices` jobs down that socket rather than ever fetching the sidecar itself. `apps/api/src/lib/agent-registry.ts` holds the in-process `userId → connection` map (single-API-instance assumption, same as on-demand TTS generation already running synchronously in that process) and implements `RelayDispatcher` — injected into `generateTts()`/`listTtsVoices()` so `packages/providers` never imports app-level code. See the README's "Running TTS on your own hardware" section for the operator-facing setup flow.
 
@@ -312,7 +313,7 @@ A self-contained audio-player module in the reader, sitting alongside the "Summa
 - Defaults (provider, voice, speed, highlight on/off) persisted in `user_settings.tts_prefs`.
 
 ### 7.4 Voices
-- `GET /tts/voices?provider=` lists available voices — ElevenLabs via its voices API (using the stored key), Piper from the installed voice models on the sidecar. Cache the list briefly.
+- `GET /tts/voices?provider=` lists available voices — ElevenLabs via its voices API (using the stored key), Piper from the installed voice models on the sidecar. Cache the list briefly. OpenRouter additionally reads an optional `?model=` — its voices are per-model, not per-account — and falls back to `DEFAULT_OPENROUTER_TTS_MODEL` when omitted.
 
 ---
 
@@ -384,7 +385,9 @@ GET    /articles/:id/summary        # cached only
 POST   /articles/:id/tts            # { provider?, voice?, source?: 'full'|'summary' } → cached or generated; returns audio URL + metadata
 GET    /articles/:id/tts            # cached audio metadata (+ stream URL)
 GET    /tts/audio/:id               # auth-scoped audio stream (NOT a public static path — see §10)
-GET    /tts/voices                  # ?provider= → available voices
+GET    /tts/voices                  # ?provider=&model= → available voices (model only meaningful for openrouter)
+
+GET    /openrouter/models           # ?kind=summary|tts → cached catalog proxy, backs the model pickers
 
 GET    /settings
 PATCH  /settings
