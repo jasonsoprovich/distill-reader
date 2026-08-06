@@ -30,7 +30,9 @@ export interface TtsVoiceInfo {
 export interface TtsProviderClient {
   provider: TtsProviderKind;
   synthesize(req: TtsSynthesizeRequest): Promise<TtsSynthesizeResult>;
-  listVoices(): Promise<TtsVoiceInfo[]>;
+  // Only OpenRouter reads `model` — its voices are per-model (see
+  // tts/openrouter.ts), unlike every other provider's fixed/per-account list.
+  listVoices(model?: string): Promise<TtsVoiceInfo[]>;
 }
 
 // Implemented by apps/api's agent registry, injected into generateTts() so

@@ -1,4 +1,10 @@
-import { ELEVENLABS_MODELS, OPENAI_TTS_MODELS, OPENAI_TTS_VOICES, type TtsProviderKind } from "@distill/shared";
+import {
+  DEFAULT_OPENROUTER_TTS_MODEL,
+  ELEVENLABS_MODELS,
+  OPENAI_TTS_MODELS,
+  OPENAI_TTS_VOICES,
+  type TtsProviderKind,
+} from "@distill/shared";
 
 // "Rachel" — ElevenLabs' long-standing stock voice id; Piper's default
 // depends on whichever voice model the operator's sidecar has installed, so
@@ -8,31 +14,39 @@ import { ELEVENLABS_MODELS, OPENAI_TTS_MODELS, OPENAI_TTS_VOICES, type TtsProvid
 // flagship American-English voice (a/f prefix = American/female —
 // Kokoro-FastAPI's own docs and examples default to it), bundled in every
 // Kokoro-FastAPI image regardless of which voices an operator cares about.
+// OpenRouter's is the first voice DEFAULT_OPENROUTER_TTS_MODEL reports
+// (see openrouter-catalog.ts) — "eve", verified against the live catalog.
 export const DEFAULT_TTS_VOICES: Record<TtsProviderKind, string> = {
   elevenlabs: "21m00Tcm4TlvDq8ikWAM",
   piper: "en_US-lessac-medium",
   openai: OPENAI_TTS_VOICES[0],
   kokoro: "af_heart",
+  openrouter: "eve",
 };
 
 // ELEVENLABS_MODELS/OPENAI_TTS_MODELS themselves live in @distill/shared
 // (PLAN §7.4) so the frontend picker can import them without pulling in
 // this server-only package — this just derives each server default from
 // its first entry, one source of truth either way. Kokoro has no model
-// concept (like Piper), so it has no entry here.
+// concept (like Piper), so it has no entry here. OpenRouter's catalog is
+// too large/dynamic for a static list (see openrouter-catalog.ts) — its
+// default is DEFAULT_OPENROUTER_TTS_MODEL instead of a first-entry lookup.
 export const DEFAULT_TTS_MODELS: Partial<Record<TtsProviderKind, string>> = {
   elevenlabs: ELEVENLABS_MODELS[0].id,
   openai: OPENAI_TTS_MODELS[0].id,
+  openrouter: DEFAULT_OPENROUTER_TTS_MODEL,
 };
 
 // Each provider always synthesizes to one fixed format (mp3 for ElevenLabs,
-// OpenAI, and Kokoro, wav for Piper) — this lets a caller compute the cache
-// key before calling generateTts().
+// OpenAI, Kokoro, and OpenRouter — the last of these explicitly requested,
+// since its own default is pcm — wav for Piper) — this lets a caller compute
+// the cache key before calling generateTts().
 export const TTS_FORMATS: Record<TtsProviderKind, string> = {
   elevenlabs: "mp3",
   piper: "wav",
   openai: "mp3",
   kokoro: "mp3",
+  openrouter: "mp3",
 };
 
 // Bounds each provider HTTP call. Synthesis is slower than a summary
@@ -53,6 +67,7 @@ export const TTS_REQUEST_TIMEOUT_MS: Record<TtsProviderKind, number> = {
   openai: 60_000,
   piper: 120_000,
   kokoro: 120_000,
+  openrouter: 60_000,
 };
 
 // Long articles are split before synthesis (PLAN §7.2) so the first chunk
@@ -63,12 +78,14 @@ export const TTS_MAX_SINGLE_PASS_CHARS: Record<TtsProviderKind, number> = {
   openai: 4_000,
   piper: 1_200,
   kokoro: 1_200,
+  openrouter: 4_000,
 };
 export const TTS_CHUNK_CHARS: Record<TtsProviderKind, number> = {
   elevenlabs: 3_000,
   openai: 3_000,
   piper: 1_000,
   kokoro: 1_000,
+  openrouter: 3_000,
 };
 
 // Cache-invalidation key (mirrors summary's SUMMARY_PROMPT_VERSION) — bump

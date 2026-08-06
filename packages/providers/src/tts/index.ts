@@ -14,6 +14,7 @@ import {
   TTS_SETTINGS_VERSION,
 } from "./models.js";
 import { createOpenAiTtsClient } from "./openai.js";
+import { createOpenRouterTtsClient } from "./openrouter.js";
 import { createPiperClient } from "./piper.js";
 import {
   TtsProviderError,
@@ -69,6 +70,9 @@ function createClient(
     case "kokoro":
       if (!credential.baseUrl) throw new TtsProviderError(provider, "auth", "No Kokoro base URL configured");
       return createKokoroClient(credential.baseUrl);
+    case "openrouter":
+      if (!credential.apiKey) throw new TtsProviderError(provider, "auth", "No OpenRouter API key configured");
+      return createOpenRouterTtsClient(credential.apiKey);
   }
 }
 
@@ -198,8 +202,11 @@ export async function listTtsVoices(
   userId: string,
   provider: TtsProviderKind,
   relayDispatcher?: RelayDispatcher,
+  // Only read by OpenRouter, whose voices are per-model — every other
+  // provider's client ignores this (see TtsProviderClient.listVoices).
+  model?: string,
 ): Promise<TtsVoiceInfo[]> {
   const credential = await resolveCredential(db, userId, provider);
   if (!credential) throw new TtsProviderError(provider, "auth", `No ${provider} credential configured`);
-  return createClient(userId, provider, credential, relayDispatcher).listVoices();
+  return createClient(userId, provider, credential, relayDispatcher).listVoices(model);
 }
