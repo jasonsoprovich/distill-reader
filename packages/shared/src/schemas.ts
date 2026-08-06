@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CREDENTIAL_PROVIDERS,
   FEED_KINDS,
+  OPENROUTER_MODEL_KINDS,
   READER_FONT_NAMES,
   READER_THEME_NAMES,
   RELAY_TTS_PROVIDERS,
@@ -99,7 +100,7 @@ export type BulkArticlesInput = z.infer<typeof bulkArticlesSchema>;
 
 // Providers that require a secret key; ollama/piper are self-hosted and
 // addressed via baseUrl instead (PLAN §7.1/§10.3).
-const KEYED_CREDENTIAL_PROVIDERS = new Set(["openai", "anthropic", "elevenlabs"]);
+const KEYED_CREDENTIAL_PROVIDERS = new Set(["openai", "anthropic", "elevenlabs", "openrouter"]);
 
 export const createCredentialSchema = z
   .object({
@@ -150,6 +151,16 @@ export const ttsPrefsSchema = z.object({
 });
 export type TtsPrefsInput = z.infer<typeof ttsPrefsSchema>;
 
+// Persisted as a merge-patch into user_settings.summary_prefs (jsonb), same
+// all-optional shape as ttsPrefsSchema. `models` is keyed per provider
+// (rather than one bare field) so a stale OpenRouter model id can't leak
+// into a request against a different provider after the user switches
+// defaultSummaryProvider.
+export const summaryPrefsSchema = z.object({
+  models: z.partialRecord(z.enum(SUMMARY_PROVIDERS), z.string().min(1).max(200)).optional(),
+});
+export type SummaryPrefsInput = z.infer<typeof summaryPrefsSchema>;
+
 // PLAN §8.3 — persisted as a merge-patch into user_settings.reader_theme
 // (jsonb), same all-optional shape as rsvpPrefsSchema/ttsPrefsSchema.
 export const readerThemeSchema = z.object({
@@ -166,6 +177,7 @@ export const patchSettingsSchema = z.object({
   readerTheme: readerThemeSchema.optional(),
   rsvpPrefs: rsvpPrefsSchema.optional(),
   ttsPrefs: ttsPrefsSchema.optional(),
+  summaryPrefs: summaryPrefsSchema.optional(),
   defaultSummaryProvider: z.enum(SUMMARY_PROVIDERS).nullable().optional(),
   defaultTtsProvider: z.enum(TTS_PROVIDERS).nullable().optional(),
 });
@@ -184,6 +196,11 @@ export const requestTtsSchema = z.object({
   source: z.enum(TTS_SOURCES).optional(),
 });
 export type RequestTtsInput = z.infer<typeof requestTtsSchema>;
+
+export const openRouterModelsQuerySchema = z.object({
+  kind: z.enum(OPENROUTER_MODEL_KINDS),
+});
+export type OpenRouterModelsQueryInput = z.infer<typeof openRouterModelsQuerySchema>;
 
 export const updatePlaybackPositionSchema = z.object({
   positionSeconds: z.number().min(0),

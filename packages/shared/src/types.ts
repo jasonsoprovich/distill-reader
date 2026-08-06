@@ -8,11 +8,24 @@ export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
 
 // Mirrors the db `summary_provider` / `tts_provider` / `credential_provider`
 // enums (packages/db/src/schema/ai.ts, settings.ts).
-export const SUMMARY_PROVIDERS = ["openai", "anthropic", "ollama"] as const;
+export const SUMMARY_PROVIDERS = ["openai", "anthropic", "ollama", "openrouter"] as const;
 export type SummaryProviderKind = (typeof SUMMARY_PROVIDERS)[number];
 
-export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai", "kokoro"] as const;
+export const TTS_PROVIDERS = ["elevenlabs", "piper", "openai", "kokoro", "openrouter"] as const;
 export type TtsProviderKind = (typeof TTS_PROVIDERS)[number];
+
+// OpenRouter fronts ~400 text models and ~19 TTS models behind one API key
+// (https://openrouter.ai/api/v1), OpenAI-compatible for both chat
+// completions and /audio/speech. Its catalog is fetched live rather than
+// hardcoded (see OpenRouterModelDTO below) — unlike ELEVENLABS_MODELS/
+// OPENAI_TTS_MODELS, a static list would go stale immediately.
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+// A floating alias (not a dated snapshot) so the default can't be silently
+// delisted out from under existing users.
+export const DEFAULT_OPENROUTER_SUMMARY_MODEL = "~anthropic/claude-haiku-latest";
+// Verified against the live catalog (GET /models?output_modalities=speech):
+// clean supported_voices list (eve/ara/rex/sal/leo), low per-character cost.
+export const DEFAULT_OPENROUTER_TTS_MODEL = "x-ai/grok-voice-tts-1.0";
 
 // Self-hosted-only providers eligible to run behind the local relay agent
 // (apps/relay-agent) instead of a direct base_url — ElevenLabs/OpenAI are
@@ -86,8 +99,10 @@ export type OpenAiTtsVoiceId = (typeof OPENAI_TTS_VOICES)[number];
 export const TTS_SOURCES = ["full", "summary"] as const;
 export type TtsSource = (typeof TTS_SOURCES)[number];
 
-export const CREDENTIAL_PROVIDERS = [...SUMMARY_PROVIDERS, ...TTS_PROVIDERS] as const;
-export type CredentialProviderKind = (typeof CREDENTIAL_PROVIDERS)[number];
+// Deduped: openai/openrouter are both summary and TTS providers, so a plain
+// spread would list each of them twice in every credential picker.
+export const CREDENTIAL_PROVIDERS = Array.from(new Set<string>([...SUMMARY_PROVIDERS, ...TTS_PROVIDERS])) as CredentialProviderKind[];
+export type CredentialProviderKind = SummaryProviderKind | TtsProviderKind;
 
 // --- Ingestion pipeline (packages/extract) -------------------------------
 
@@ -258,6 +273,15 @@ export interface TtsPrefs {
   source?: TtsSource;
 }
 
+// Persisted summary-model preference, keyed per provider (unlike TtsPrefs'
+// single global `model`) so switching defaultSummaryProvider can't carry a
+// stale model id from one provider into a request to another — only matters
+// today for OpenRouter, whose ~400-model catalog makes a per-provider pick
+// worth persisting at all (every other provider's model list is small/fixed).
+export interface SummaryPrefs {
+  models?: Partial<Record<SummaryProviderKind, string>>;
+}
+
 // PLAN §8.3 — built-in reader themes, persisted in user_settings.reader_theme.
 export const READER_THEME_NAMES = [
   "light",
@@ -307,6 +331,7 @@ export interface SettingsDTO {
   readerTheme: ReaderTheme;
   rsvpPrefs: RsvpPrefs;
   ttsPrefs: TtsPrefs;
+  summaryPrefs: SummaryPrefs;
   defaultSummaryProvider: SummaryProviderKind | null;
   defaultTtsProvider: TtsProviderKind | null;
 }
@@ -343,6 +368,23 @@ export interface TtsVoiceDTO {
   id: string;
   name: string;
   category?: string;
+}
+
+export const OPENROUTER_MODEL_KINDS = ["summary", "tts"] as const;
+export type OpenRouterModelKind = (typeof OPENROUTER_MODEL_KINDS)[number];
+
+// GET /openrouter/models — a filtered, mapped view of OpenRouter's own
+// GET /models catalog (~400 text models, ~19 TTS models). `supportedVoices`
+// is only ever populated for kind="tts": present (possibly empty) when
+// OpenRouter's own `supported_voices` field is set, `null` when that model
+// doesn't report one — the picker falls back to a free-text voice field in
+// that case (some TTS models, e.g. fish-audio's, don't enumerate voices).
+export interface OpenRouterModelDTO {
+  id: string;
+  name: string;
+  contextLength: number;
+  pricing: { prompt: string; completion: string };
+  supportedVoices: string[] | null;
 }
 
 // Pairing tokens for the local TTS relay agent (apps/relay-agent) — the raw
