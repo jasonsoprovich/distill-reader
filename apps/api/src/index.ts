@@ -78,6 +78,7 @@ app.use("/articles/*", jsonApiCors);
 app.use("/credentials/*", jsonApiCors);
 app.use("/settings/*", jsonApiCors);
 app.use("/tts/*", jsonApiCors);
+app.use("/openrouter/*", jsonApiCors);
 app.use("/me/*", jsonApiCors);
 // Scoped to the REST token/status endpoints only — deliberately excludes
 // /relay/agent below, which is a WebSocket upgrade the relay agent (a Node
