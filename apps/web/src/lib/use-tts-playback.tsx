@@ -186,8 +186,8 @@ export function useTtsPlayback(
     try {
       const result = await requestTts.mutateAsync({
         articleId,
-        voice: settings?.ttsPrefs.voice,
-        model: settings?.ttsPrefs.model,
+        voice: settings?.ttsPrefs.voice ?? undefined,
+        model: settings?.ttsPrefs.model ?? undefined,
         source,
       });
       setActiveSource(source);

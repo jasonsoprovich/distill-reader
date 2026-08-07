@@ -141,10 +141,12 @@ export const rsvpPrefsSchema = z.object({
 export type RsvpPrefsInput = z.infer<typeof rsvpPrefsSchema>;
 
 // PLAN §7.3 — persisted as a merge-patch into user_settings.tts_prefs
-// (jsonb), mirroring rsvpPrefsSchema's all-optional shape.
+// (jsonb), mirroring rsvpPrefsSchema's all-optional shape. voice/model are
+// nullable (not just optional) so a patch can explicitly clear a
+// previously-saved value — see TtsPrefs's own comment for why that matters.
 export const ttsPrefsSchema = z.object({
-  voice: z.string().min(1).max(200).optional(),
-  model: z.string().min(1).max(200).optional(),
+  voice: z.string().min(1).max(200).nullable().optional(),
+  model: z.string().min(1).max(200).nullable().optional(),
   speed: z.number().min(0.5).max(2).optional(),
   highlightFollowEnabled: z.boolean().optional(),
   source: z.enum(TTS_SOURCES).optional(),

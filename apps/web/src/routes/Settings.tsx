@@ -856,7 +856,14 @@ function TtsVoicePicker() {
   useEffect(() => {
     if (!dirtyRef.current) return;
     const timer = setTimeout(() => {
-      updateSettings.mutate({ ttsPrefs: { voice, model, speed, highlightFollowEnabled } });
+      // Explicit null (not a bare `undefined`, which JSON.stringify would
+      // drop from the request body entirely) — the server's merge-patch can
+      // only clear a previously-saved voice/model by seeing that key with a
+      // real null value; an absent key just leaves the old one in place.
+      // Without this, switching models/providers left a stale voice id
+      // around (confirmed: a Kokoro voice id surviving a switch to Fish
+      // Audio, since re-sent to a backend that doesn't recognize it).
+      updateSettings.mutate({ ttsPrefs: { voice: voice ?? null, model: model ?? null, speed, highlightFollowEnabled } });
     }, PERSIST_TTS_PREFS_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps

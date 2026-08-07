@@ -263,9 +263,19 @@ export interface RsvpPrefs {
 // provider is active (previously this had its own per-listen override,
 // back when the Listen popover had its own provider picker).
 export interface TtsPrefs {
-  voice?: string;
-  // Only meaningful for providers with a model concept (ElevenLabs).
-  model?: string;
+  // Nullable (not just optional): a merge-patch PATCH can only *clear* a
+  // previously-saved value by sending an explicit `null` — an omitted key
+  // (including one whose value serialized to `undefined`, which
+  // JSON.stringify drops entirely) leaves whatever's already stored
+  // untouched. This matters concretely for OpenRouter, whose voice/model
+  // ids are each their own namespace per model: switching models without
+  // this would silently leave a stale, unrelated voice id in place (e.g.
+  // a Kokoro voice id surviving a switch to Fish Audio, sent to a backend
+  // that doesn't recognize it) rather than actually clearing it.
+  voice?: string | null;
+  // Only meaningful for providers with a model concept (ElevenLabs,
+  // OpenRouter).
+  model?: string | null;
   speed?: number;
   highlightFollowEnabled?: boolean;
   // Last source chosen from the read-aloud confirmation modal — used only
