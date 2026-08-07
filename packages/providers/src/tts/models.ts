@@ -108,6 +108,24 @@ export const TTS_CHUNK_CHARS: Record<TtsProviderKind, number> = {
   openrouter: 3_000,
 };
 
+// Whether a multi-chunk request's chunks can be synthesized concurrently
+// rather than one-at-a-time. True for provisioned cloud APIs (elevenlabs,
+// openai, openrouter) — a long article split into N chunks otherwise pays
+// N times the per-chunk latency stacked sequentially, which is severe for
+// OpenRouter specifically given its own per-request latency already runs
+// far higher than a dedicated provider's. False for Piper/Kokoro: those
+// are single self-hosted CPU-bound sidecars, not a scalable API — sending
+// concurrent requests would contend for the same limited hardware rather
+// than actually run in parallel, likely making both slower rather than
+// either faster.
+export const TTS_SUPPORTS_CONCURRENT_CHUNKS: Record<TtsProviderKind, boolean> = {
+  elevenlabs: true,
+  openai: true,
+  piper: false,
+  kokoro: false,
+  openrouter: true,
+};
+
 // Cache-invalidation key (mirrors summary's SUMMARY_PROMPT_VERSION) — bump
 // when synthesis parameters change in a way that should miss old caches.
 export const TTS_SETTINGS_VERSION = "v1";

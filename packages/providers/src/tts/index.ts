@@ -12,6 +12,7 @@ import {
   TTS_CHUNK_CHARS,
   TTS_MAX_SINGLE_PASS_CHARS,
   TTS_SETTINGS_VERSION,
+  TTS_SUPPORTS_CONCURRENT_CHUNKS,
 } from "./models.js";
 import { createOpenAiTtsClient } from "./openai.js";
 import { createOpenRouterTtsClient } from "./openrouter.js";
@@ -164,9 +165,26 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
       ? chunkText(opts.articleText, TTS_CHUNK_CHARS[opts.provider])
       : [opts.articleText];
 
-  const results: TtsSynthesizeResult[] = [];
-  for (const chunk of chunks) {
-    results.push(await client.synthesize({ text: chunk, voice, speed, model: model ?? undefined }));
+  const synthesizeChunk = (chunk: string) => client.synthesize({ text: chunk, voice, speed, model: model ?? undefined });
+
+  // Provisioned cloud APIs handle concurrent chunk requests fine and it
+  // matters a lot for them — a long article otherwise pays N times the
+  // per-chunk latency stacked sequentially, worst for OpenRouter given its
+  // own per-request latency already runs well above a dedicated provider's.
+  // Self-hosted Piper/Kokoro stay sequential: those are one physical
+  // sidecar (or, via the relay, one physical home machine), not a scalable
+  // API — concurrent requests would contend for the same limited hardware
+  // rather than actually run in parallel. Promise.all preserves chunk
+  // order in its result array regardless of completion order, so the
+  // concatenation/timing-merge logic below needs no changes either way.
+  let results: TtsSynthesizeResult[];
+  if (TTS_SUPPORTS_CONCURRENT_CHUNKS[opts.provider]) {
+    results = await Promise.all(chunks.map(synthesizeChunk));
+  } else {
+    results = [];
+    for (const chunk of chunks) {
+      results.push(await synthesizeChunk(chunk));
+    }
   }
 
   const format = results[0].format;
