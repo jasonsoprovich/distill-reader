@@ -37,16 +37,18 @@ export const DEFAULT_TTS_MODELS: Partial<Record<TtsProviderKind, string>> = {
   openrouter: DEFAULT_OPENROUTER_TTS_MODEL,
 };
 
-// Each provider always synthesizes to one fixed format (mp3 for ElevenLabs,
-// OpenAI, Kokoro, and OpenRouter — the last of these explicitly requested,
-// since its own default is pcm — wav for Piper) — this lets a caller compute
-// the cache key before calling generateTts().
+// Each provider always synthesizes to one fixed format — this lets a caller
+// compute the cache key before calling generateTts(). OpenRouter is wav
+// (its client always requests pcm and wraps it — see tts/openrouter.ts for
+// why: not every one of its ~19 TTS backends supports mp3, and this field
+// being fixed rather than varying per model is what keeps the cache lookup
+// correct), matching Piper; every other provider is mp3.
 export const TTS_FORMATS: Record<TtsProviderKind, string> = {
   elevenlabs: "mp3",
   piper: "wav",
   openai: "mp3",
   kokoro: "mp3",
-  openrouter: "mp3",
+  openrouter: "wav",
 };
 
 // Bounds each provider HTTP call. Synthesis is slower than a summary

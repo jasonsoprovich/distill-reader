@@ -43,7 +43,10 @@ function parseWav(buf: Buffer): WavChunkInfo {
   return { ...fmt, dataOffset, dataLength };
 }
 
-function buildWavHeader(dataLength: number, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
+// Exported for tts/openrouter.ts, which needs to wrap OpenRouter's raw
+// pcm response_format in a WAV container itself (not just concatenate
+// already-WAV chunks like Piper's, which is what this file otherwise does).
+export function buildWavHeader(dataLength: number, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
   const blockAlign = channels * (bitsPerSample / 8);
   const header = Buffer.alloc(44);
   header.write("RIFF", 0, "ascii");
