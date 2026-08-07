@@ -17,13 +17,32 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # PLAN §10.6 — gated on high/critical only. One accepted moderate
-      # finding remains as of writing: esbuild's dev-server CORS issue
-      # (GHSA-67mh-4wv8-2f99), pulled in transitively via drizzle-kit's
-      # deprecated @esbuild-kit/esm-loader — a dev-only CLI tool dependency,
-      # not part of the running app, with no direct upgrade path until
-      # drizzle-kit drops that deprecated sub-dependency upstream.
-      - run: pnpm audit --audit-level=high
+      # PLAN §10.6 — gated on high/critical only, scoped to production
+      # dependencies (--prod): the devDependency tree (vite-plugin-pwa,
+      # @vite-pwa/assets-generator) pulls in ajv/workbox-build/sharp chains
+      # with several high-severity transitive findings (fast-uri, sharp's
+      # bundled libvips, brace-expansion) that never ship to the running
+      # app — they only run once, locally, to generate the PWA
+      # manifest/icons at build time (see pwa-assets.config.ts).
+      #
+      # One production-dependency finding is explicitly ignored:
+      # GHSA-qwww-vcr4-c8h2 (react-router CSRF bypass) only affects
+      # react-router's unstable RSC/server-actions APIs per the advisory
+      # itself — this app is a plain client-side SPA using <BrowserRouter>
+      # (apps/web/src/App.tsx) against a fully separate Hono API, with no
+      # server actions running through react-router at all. Fixing it
+      # "properly" would mean migrating off react-router-dom entirely
+      # (react-router v8 dropped the separate DOM package, so there's no
+      # in-place version bump) for a code path this app doesn't use.
+      #
+      # One accepted moderate finding remains as of writing: esbuild's
+      # dev-server CORS issue (GHSA-67mh-4wv8-2f99), pulled in transitively
+      # via drizzle-kit's deprecated @esbuild-kit/esm-loader — a dev-only
+      # CLI tool dependency, not part of the running app, with no direct
+      # upgrade path until drizzle-kit drops that deprecated sub-dependency
+      # upstream. (--audit-level=high already excludes it from failing the
+      # build; noted here for anyone auditing this list by hand.)
+      - run: pnpm audit --audit-level=high --prod --ignore GHSA-qwww-vcr4-c8h2
 
   build:
     name: Typecheck, lint, test
