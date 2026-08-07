@@ -948,7 +948,7 @@ function TtsVoicePicker() {
         <label className="flex flex-col gap-1 text-xs font-medium text-[var(--surface-muted)]">
           Voice
           <Input
-            placeholder="Voice id (see the model's page on openrouter.ai/models)"
+            placeholder="Leave blank for this model's default voice, or enter a specific voice id"
             value={voice ?? ""}
             onChange={(e) => pickVoice(e.target.value || undefined)}
           />

@@ -3,7 +3,7 @@ import { DEFAULT_OPENROUTER_TTS_MODEL, OPENROUTER_BASE_URL } from "@distill/shar
 import { fetchOpenRouterModels } from "../openrouter-catalog.js";
 import { buildWavHeader } from "./audio-concat.js";
 import { classifyStatus, isTimeoutError } from "./http.js";
-import { TTS_REQUEST_TIMEOUT_MS } from "./models.js";
+import { DEFAULT_TTS_VOICES, TTS_REQUEST_TIMEOUT_MS } from "./models.js";
 import { TtsProviderError, type TtsSynthesizeRequest, type TtsSynthesizeResult, type TtsProviderClient, type TtsVoiceInfo } from "./types.js";
 
 // OpenAI's own documented pcm convention (24kHz, mono, 16-bit signed LE) —
@@ -77,10 +77,23 @@ export function createOpenRouterTtsClient(apiKey: string): TtsProviderClient {
       // runs (articles.ts) — a per-model-varying format would make that
       // precomputed key wrong for whichever models don't take the "default"
       // path, permanently missing the cache and re-billing on every replay.
+      const resolvedModel = model || DEFAULT_OPENROUTER_TTS_MODEL;
+      // resolveTtsVoice's own fallback (DEFAULT_TTS_VOICES.openrouter, "eve")
+      // is only a real voice for DEFAULT_OPENROUTER_TTS_MODEL specifically —
+      // it isn't scoped per-model like everything else here, so applying it
+      // when a *different* model was picked would send a made-up voice id
+      // that model doesn't recognize instead of leaving voice unset and
+      // letting it fall through to its own default (voice is documented as
+      // optional on OpenRouter's own TTS endpoint — e.g. Fish Audio's models,
+      // which don't expose a voice list at all, use their own default voice
+      // when none is given). Only forward it when it actually belongs to the
+      // model being used.
+      const resolvedVoice = voice === DEFAULT_TTS_VOICES.openrouter && resolvedModel !== DEFAULT_OPENROUTER_TTS_MODEL ? undefined : voice;
+
       const response = await requestSpeech({
-        model: model || DEFAULT_OPENROUTER_TTS_MODEL,
+        model: resolvedModel,
         input: text,
-        voice,
+        voice: resolvedVoice,
         speed,
         response_format: "pcm",
       });
