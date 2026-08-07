@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon, CheckIcon, ChevronsUpDownIcon, CopyIcon, SearchIcon, TrashIcon } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -1084,7 +1085,13 @@ function ReaderThemePicker() {
 
       <label className="flex items-center gap-3 text-xs font-medium text-[var(--surface-muted)]">
         <span className="w-16 shrink-0">Font size</span>
-        <Slider value={[fontSize]} min={14} max={24} step={1} onValueChange={([v]) => pickFontSize(v)} />
+        {/* Rescope Slider's --muted/--primary (normally static light-mode
+            tokens, since the app never toggles .dark) to the current
+            theme's surface colors — otherwise on dark themes the unfilled
+            track renders brighter than the filled range. */}
+        <div className="flex-1" style={{ "--muted": "var(--surface-hover)", "--primary": "var(--surface-accent)", "--background": "var(--surface-bg)" } as CSSProperties}>
+          <Slider value={[fontSize]} min={14} max={24} step={1} onValueChange={([v]) => pickFontSize(v)} />
+        </div>
         <span className="w-10 shrink-0 text-right">{fontSize}px</span>
       </label>
 
