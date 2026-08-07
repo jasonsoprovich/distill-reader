@@ -62,18 +62,30 @@ export const TTS_FORMATS: Record<TtsProviderKind, string> = {
 // bare 60s budget leaves little room before a legitimately-in-progress
 // synthesis gets aborted and reported as a timeout. 120s leaves headroom
 // for hardware running at roughly a third of that measured rate.
-// OpenRouter gets the self-hosted providers' longer budget, not the other
-// cloud providers' 60s: unlike ElevenLabs/OpenAI (one vendor, one known
-// latency profile), OpenRouter fronts ~19 unrelated TTS backends of wildly
-// different speed — including small open-weight models (e.g. its own
-// hexgrad/kokoro-82m listing) that can cold-start on infra with the same
-// latency characteristics as this repo's self-hosted Kokoro/Piper sidecars.
+// OpenRouter gets a longer budget than the other cloud providers' 60s:
+// unlike ElevenLabs/OpenAI (one vendor, one known latency profile),
+// OpenRouter fronts ~19 unrelated TTS backends of wildly different speed —
+// including small open-weight models (e.g. its own hexgrad/kokoro-82m
+// listing) that can be much slower via OpenRouter's hosting than this
+// repo's own self-hosted Kokoro/Piper sidecars.
+//
+// It's deliberately capped below Piper/Kokoro's 120s, though, not matched to
+// it: a cloud deployment sitting behind Cloudflare (this repo's own
+// reference deployment does) gets a **hard, unconfigurable ~100s origin
+// read timeout on Free/Pro plans** — verified by SSHing into that
+// deployment and finding neither the API container nor its own reverse
+// proxy (Traefik) logged anything for a failed request, meaning Cloudflare
+// killed the connection before it ever reached either. A timeout here at or
+// above that ceiling means Cloudflare's own bare error page (no CORS
+// header, since it isn't from this app) always wins the race against our
+// own clean, specific one — worse than just being slow. 90s keeps a 10s
+// margin under that ceiling.
 export const TTS_REQUEST_TIMEOUT_MS: Record<TtsProviderKind, number> = {
   elevenlabs: 60_000,
   openai: 60_000,
   piper: 120_000,
   kokoro: 120_000,
-  openrouter: 120_000,
+  openrouter: 90_000,
 };
 
 // Long articles are split before synthesis (PLAN §7.2) so the first chunk
