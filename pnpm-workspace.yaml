@@ -4,5 +4,8 @@ packages:
 allowBuilds:
   esbuild: true
   sharp: true
+auditConfig:
+  ignoreGhsas:
+    - GHSA-qwww-vcr4-c8h2
 overrides:
   esbuild: ^0.25.0

@@ -25,15 +25,18 @@ jobs:
       # app — they only run once, locally, to generate the PWA
       # manifest/icons at build time (see pwa-assets.config.ts).
       #
-      # One production-dependency finding is explicitly ignored:
-      # GHSA-qwww-vcr4-c8h2 (react-router CSRF bypass) only affects
-      # react-router's unstable RSC/server-actions APIs per the advisory
-      # itself — this app is a plain client-side SPA using <BrowserRouter>
-      # (apps/web/src/App.tsx) against a fully separate Hono API, with no
-      # server actions running through react-router at all. Fixing it
-      # "properly" would mean migrating off react-router-dom entirely
-      # (react-router v8 dropped the separate DOM package, so there's no
-      # in-place version bump) for a code path this app doesn't use.
+      # One production-dependency finding is explicitly exempted, via
+      # pnpm-workspace.yaml's auditConfig.ignoreGhsas (pnpm's own persisted
+      # mechanism for this — not just a CLI flag here, so it isn't silently
+      # lost if this workflow is ever restructured): GHSA-qwww-vcr4-c8h2
+      # (react-router CSRF bypass) only affects react-router's unstable
+      # RSC/server-actions APIs per the advisory itself — this app is a
+      # plain client-side SPA using <BrowserRouter> (apps/web/src/App.tsx)
+      # against a fully separate Hono API, with no server actions running
+      # through react-router at all. Fixing it "properly" would mean
+      # migrating off react-router-dom entirely (react-router v8 dropped
+      # the separate DOM package, so there's no in-place version bump) for
+      # a code path this app doesn't use.
       #
       # One accepted moderate finding remains as of writing: esbuild's
       # dev-server CORS issue (GHSA-67mh-4wv8-2f99), pulled in transitively
@@ -42,7 +45,7 @@ jobs:
       # upgrade path until drizzle-kit drops that deprecated sub-dependency
       # upstream. (--audit-level=high already excludes it from failing the
       # build; noted here for anyone auditing this list by hand.)
-      - run: pnpm audit --audit-level=high --prod --ignore GHSA-qwww-vcr4-c8h2
+      - run: pnpm audit --audit-level=high --prod
 
   build:
     name: Typecheck, lint, test
