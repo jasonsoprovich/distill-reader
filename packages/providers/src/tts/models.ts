@@ -62,12 +62,18 @@ export const TTS_FORMATS: Record<TtsProviderKind, string> = {
 // bare 60s budget leaves little room before a legitimately-in-progress
 // synthesis gets aborted and reported as a timeout. 120s leaves headroom
 // for hardware running at roughly a third of that measured rate.
+// OpenRouter gets the self-hosted providers' longer budget, not the other
+// cloud providers' 60s: unlike ElevenLabs/OpenAI (one vendor, one known
+// latency profile), OpenRouter fronts ~19 unrelated TTS backends of wildly
+// different speed — including small open-weight models (e.g. its own
+// hexgrad/kokoro-82m listing) that can cold-start on infra with the same
+// latency characteristics as this repo's self-hosted Kokoro/Piper sidecars.
 export const TTS_REQUEST_TIMEOUT_MS: Record<TtsProviderKind, number> = {
   elevenlabs: 60_000,
   openai: 60_000,
   piper: 120_000,
   kokoro: 120_000,
-  openrouter: 60_000,
+  openrouter: 120_000,
 };
 
 // Long articles are split before synthesis (PLAN §7.2) so the first chunk

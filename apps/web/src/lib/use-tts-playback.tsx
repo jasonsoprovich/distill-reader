@@ -6,6 +6,7 @@ import {
   type TtsSource,
   type TtsTimings,
 } from "@distill/shared";
+import { ApiError } from "@/lib/api";
 import {
   useRequestTts,
   useSettings,
@@ -198,8 +199,13 @@ export function useTtsPlayback(
       if (source !== settings?.ttsPrefs.source) {
         updateSettings.mutate({ ttsPrefs: { source } });
       }
-    } catch {
-      setGenerateError("Couldn't generate audio — try again.");
+    } catch (err) {
+      // Surfaces the real provider error (e.g. "OpenRouter request timed
+      // out") when the server returned one, instead of always showing the
+      // same generic line regardless of cause — this is the only place that
+      // failure is displayed inline (useRequestTts's own onError just fires
+      // a toast, which can be missed/dismissed before it's read).
+      setGenerateError(err instanceof ApiError ? err.message : "Couldn't generate audio — try again.");
     }
   }
 
