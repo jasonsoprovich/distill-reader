@@ -93,19 +93,28 @@ export const TTS_REQUEST_TIMEOUT_MS: Record<TtsProviderKind, number> = {
 // Long articles are split before synthesis (PLAN §7.2) so the first chunk
 // can play while the rest generate, and so no single request risks a
 // provider's own request-size ceiling.
+//
+// OpenRouter is capped at the same conservative size as Piper/Kokoro rather
+// than matched to ElevenLabs/OpenAI: unlike those two dedicated, low-latency
+// APIs, OpenRouter fronts ~19 unrelated TTS backends of wildly different
+// speed (see TTS_REQUEST_TIMEOUT_MS above), so a single-pass request sized
+// for a fast dedicated API can still blow OpenRouter's own 90s budget on a
+// slower backend well before hitting 4,000 chars — observed in practice
+// timing out anywhere past ~1,200 chars regardless of which model was
+// picked.
 export const TTS_MAX_SINGLE_PASS_CHARS: Record<TtsProviderKind, number> = {
   elevenlabs: 4_000,
   openai: 4_000,
   piper: 1_200,
   kokoro: 1_200,
-  openrouter: 4_000,
+  openrouter: 1_200,
 };
 export const TTS_CHUNK_CHARS: Record<TtsProviderKind, number> = {
   elevenlabs: 3_000,
   openai: 3_000,
   piper: 1_000,
   kokoro: 1_000,
-  openrouter: 3_000,
+  openrouter: 1_000,
 };
 
 // Whether a multi-chunk request's chunks can be synthesized concurrently
