@@ -1,0 +1,24 @@
+name: Deploy
+
+# Runs on the self-hosted runner living on the same box as Coolify (m900),
+# registered specifically for this repo. That runner calls Coolify's API
+# over localhost, which is why this works at all: the box has no public
+# inbound access, so a GitHub-hosted webhook could never reach it. The
+# runner instead reaches out to GitHub (outbound only) and triggers the
+# deploy locally once a job lands.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, m900]
+    steps:
+      - name: Trigger Coolify deploy
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APP_UUID: iov327f72lgajymsw95k64qi
+        run: |
+          curl -sf -X POST "http://localhost:8000/api/v1/deploy?uuid=${APP_UUID}" \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}"
