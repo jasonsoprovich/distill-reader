@@ -9,3 +9,10 @@ auditConfig:
     - GHSA-qwww-vcr4-c8h2
 overrides:
   esbuild: ^0.25.0
+  # better-auth lists vitest as a regular dependency (not a devDependency),
+  # which drags its vite>postcss>nanoid chain into the --prod audit surface
+  # even though nothing here ships to the running app. Pin to the patched
+  # nanoid (GHSA-2v37-7h3g-55p8) rather than ignoring the GHSA outright, so a
+  # real production nanoid vulnerability wouldn't get silently swallowed by
+  # the same exemption later.
+  nanoid: ^3.3.18
