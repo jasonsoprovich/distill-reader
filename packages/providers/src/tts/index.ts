@@ -1,9 +1,9 @@
 import type { db as DbInstance } from "@distill/db";
 import { RELAY_TTS_PROVIDERS, type RelayTtsProviderKind, type TtsProviderKind, type TtsTimings } from "@distill/shared";
 import { resolveCredential } from "../credentials.js";
-import { chunkText } from "../summary/chunk.js";
 import type { ResolvedCredential } from "../summary/types.js";
 import { concatMp3, concatWav } from "./audio-concat.js";
+import { chunkTextForTts } from "./chunk.js";
 import { createElevenLabsClient } from "./elevenlabs.js";
 import { createKokoroClient } from "./kokoro.js";
 import {
@@ -26,6 +26,7 @@ import {
 } from "./types.js";
 
 export * from "./audio-concat.js";
+export * from "./chunk.js";
 export * from "./models.js";
 export * from "./types.js";
 
@@ -162,7 +163,7 @@ export async function generateTts(opts: GenerateTtsOptions): Promise<GenerateTts
 
   const chunks =
     opts.articleText.length > TTS_MAX_SINGLE_PASS_CHARS[opts.provider]
-      ? chunkText(opts.articleText, TTS_CHUNK_CHARS[opts.provider])
+      ? chunkTextForTts(opts.articleText, TTS_CHUNK_CHARS[opts.provider])
       : [opts.articleText];
 
   const synthesizeChunk = (chunk: string) => client.synthesize({ text: chunk, voice, speed, model: model ?? undefined });
