@@ -4,13 +4,23 @@ import {
   ArrowLeftIcon,
   ArrowUpNarrowWideIcon,
   CheckCheckIcon,
-  CheckCircle2Icon,
   CheckIcon,
   StarIcon,
+  Trash2Icon,
+  Undo2Icon,
   XIcon,
 } from "lucide-react";
 import type { ArticleSortDirection } from "@distill/shared";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   useArticle,
   useArticles,
@@ -22,6 +32,56 @@ import {
 } from "@/lib/hooks";
 import { selectionToArticlesParams, type Selection } from "@/lib/selection";
 import { cn } from "@/lib/utils";
+
+// Confirmation dialog for permanently emptying the Trash — same shape as
+// FeedSidebar's DeleteFeedButton, since both fire an irreversible bulk delete.
+// Scoped server-side to view=cleared (see POST /articles/bulk), so it empties
+// every trashed article regardless of how many pages are loaded here.
+function EmptyTrashButton({ hasArticles }: { hasArticles: boolean }) {
+  const [open, setOpen] = useState(false);
+  const bulkArticles = useBulkArticles();
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 gap-1 px-2 text-xs text-[var(--surface-muted)]"
+          disabled={!hasArticles}
+        >
+          <Trash2Icon className="size-3.5" />
+          Empty trash
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Empty trash?</DialogTitle>
+          <DialogDescription>
+            This permanently deletes every article in the trash. This can't be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={bulkArticles.isPending}
+            onClick={() =>
+              bulkArticles.mutate(
+                { view: "cleared", action: "delete" },
+                { onSuccess: () => setOpen(false) },
+              )
+            }
+          >
+            {bulkArticles.isPending ? "Emptying…" : "Empty trash"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 interface ArticleListProps {
   selection: Selection;
@@ -82,9 +142,10 @@ export default function ArticleList({
   const displayedArticles =
     showPinnedFocusedArticle && focusedArticle ? [focusedArticle, ...articles] : articles;
 
-  // Marking-all-read is meaningless in the Removed view (those articles are
+  const isTrashView = selection.kind === "view" && selection.view === "cleared";
+  // Marking-all-read is meaningless in the Trash view (those articles are
   // already out of the reading flow).
-  const canMarkAllRead = !(selection.kind === "view" && selection.view === "cleared");
+  const canMarkAllRead = !isTrashView;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // True once "select all" has been used: the action bar then targets every
@@ -239,7 +300,7 @@ export default function ArticleList({
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  title="Mark done"
+                  title="Move to trash"
                   disabled={isBulkPending}
                   onClick={() =>
                     selectAllScope
@@ -247,7 +308,7 @@ export default function ArticleList({
                       : runBulk((id) => clearArticle.mutateAsync({ id, cleared: true }))
                   }
                 >
-                  <CheckCircle2Icon className="size-3.5 text-[var(--surface-muted)]" />
+                  <Trash2Icon className="size-3.5 text-[var(--surface-muted)]" />
                 </Button>
               </div>
             </>
@@ -311,6 +372,7 @@ export default function ArticleList({
                     Mark all read
                   </Button>
                 )}
+                {isTrashView && <EmptyTrashButton hasArticles={articles.length > 0} />}
               </div>
             </>
           )}
@@ -425,14 +487,14 @@ export default function ArticleList({
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  title={isCleared ? "Restore" : "Mark done"}
+                  title={isCleared ? "Restore" : "Move to trash"}
                   onClick={() => clearArticle.mutate({ id: article.id, cleared: !isCleared })}
                 >
-                  <CheckCircle2Icon
-                    className={cn("size-3.5", isCleared ? "text-emerald-600" : "text-[var(--surface-muted)]")}
-                    fill={isCleared ? "currentColor" : "none"}
-                    stroke={isCleared ? "var(--surface-bg)" : "currentColor"}
-                  />
+                  {isCleared ? (
+                    <Undo2Icon className="size-3.5 text-[var(--surface-muted)]" />
+                  ) : (
+                    <Trash2Icon className="size-3.5 text-[var(--surface-muted)]" />
+                  )}
                 </Button>
               </div>
             </div>

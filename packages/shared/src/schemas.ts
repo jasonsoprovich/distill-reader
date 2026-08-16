@@ -87,7 +87,7 @@ export type ReadAllInput = z.infer<typeof readAllSchema>;
 // Scoped by the same feedId/tagId/view filters as the list endpoint, so
 // "select all" in the UI can act on every article matching the current
 // grouping — not just the page(s) already fetched into the client.
-export const BULK_ARTICLE_ACTIONS = ["read", "star", "clear"] as const;
+export const BULK_ARTICLE_ACTIONS = ["read", "star", "clear", "delete"] as const;
 export type BulkArticleAction = (typeof BULK_ARTICLE_ACTIONS)[number];
 
 export const bulkArticlesSchema = z.object({

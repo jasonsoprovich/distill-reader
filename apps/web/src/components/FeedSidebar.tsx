@@ -61,7 +61,7 @@ interface FeedSidebarProps {
 const SMART_VIEWS: { view: ArticleView; label: string }[] = [
   { view: "unread", label: "Unread" },
   { view: "starred", label: "Starred" },
-  { view: "cleared", label: "Removed" },
+  { view: "cleared", label: "Trash" },
 ];
 
 type FeedSortMode = "title-asc" | "title-desc";

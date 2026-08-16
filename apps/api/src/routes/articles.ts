@@ -355,6 +355,13 @@ articlesRouter.post("/bulk", async (c) => {
   if (!body.success) return c.json({ message: "Invalid request", issues: body.error.issues }, 400);
   const { feedId, tagId, view, action } = body.data;
 
+  // Permanent deletion is irreversible, so it's only ever allowed scoped to
+  // the Trash view — never risks wiping articles a mis-scoped request (e.g.
+  // one that omitted view) didn't mean to touch.
+  if (action === "delete" && view !== "cleared") {
+    return c.json({ message: "Deleting requires view=cleared" }, 400);
+  }
+
   const conditions = articleFilterConditions(userId, { feedId, tagId, view });
   const targets = await db
     .select({ id: article.id })
@@ -363,26 +370,32 @@ articlesRouter.post("/bulk", async (c) => {
     .where(and(...conditions));
   if (!targets.length) return c.json({ updated: 0 });
 
+  const ids = targets.map((t) => t.id);
+
+  if (action === "delete") {
+    // Emptying the trash: the article rows are gone for good (article_state,
+    // summaries, and tts_audio rows all cascade on article.id), but the
+    // audio files on disk don't — clean those up first, same as the purge job.
+    await deleteTtsAudioRows(and(inArray(ttsAudio.articleId, ids), eq(ttsAudio.userId, userId)));
+    await db.delete(article).where(and(inArray(article.id, ids), eq(article.userId, userId)));
+    return c.json({ updated: ids.length });
+  }
+
   const now = new Date();
   const patch = action === "read" ? { readAt: now } : action === "star" ? { starred: true } : { clearedAt: now };
 
   await db
     .insert(articleState)
-    .values(targets.map((t) => ({ userId, articleId: t.id, ...patch })))
+    .values(ids.map((id) => ({ userId, articleId: id, ...patch })))
     .onConflictDoUpdate({ target: [articleState.userId, articleState.articleId], set: patch });
 
   // Mirrors the single-article clear route: dropped articles lose their
   // cached narration too.
   if (action === "clear") {
-    await deleteTtsAudioRows(
-      and(
-        inArray(ttsAudio.articleId, targets.map((t) => t.id)),
-        eq(ttsAudio.userId, userId),
-      ),
-    );
+    await deleteTtsAudioRows(and(inArray(ttsAudio.articleId, ids), eq(ttsAudio.userId, userId)));
   }
 
-  return c.json({ updated: targets.length });
+  return c.json({ updated: ids.length });
 });
 
 articlesRouter.post("/:id/read", async (c) => {
